@@ -1,0 +1,84 @@
+import type { Creature, Direction, Move } from "../data";
+
+/** Eligible move pool with per-move clocks and sticky progress phases. No global choreography. */
+export class Behaviour {
+  phase = 0;
+  active: Move | null = null;
+  direction: Direction = 0;
+  elapsed = 0;
+  recovery = 0;
+  age = 0;
+  previous = "";
+  private available = new Map<string, number>();
+  private seen = new Set<string>();
+  constructor(
+    private creature: Creature,
+    private random: () => number,
+  ) {
+    for (const move of creature.moves)
+      this.available.set(move.id, this.range(move.eligibleAfter));
+  }
+  private range([a, b]: [number, number]) {
+    return a + this.random() * (b - a);
+  }
+  get resisting() {
+    return this.active !== null && this.elapsed >= this.active.telegraph;
+  }
+  update(dt: number, progress: number) {
+    this.age += dt;
+    this.phase = Math.max(
+      this.phase,
+      this.creature.phases?.filter((p) => progress >= p).length ?? 0,
+    );
+    if (this.active) {
+      const before = this.elapsed;
+      this.elapsed += dt;
+      if (
+        this.active.reverseAt !== undefined &&
+        before < this.active.reverseAt &&
+        this.elapsed >= this.active.reverseAt
+      )
+        this.direction = this.direction === 1 ? -1 : 1;
+      if (this.elapsed >= this.active.telegraph + this.active.duration) {
+        this.previous = this.active.id;
+        this.recovery = this.active.recovery;
+        this.available.set(
+          this.active.id,
+          this.age + this.range(this.active.cooldown),
+        );
+        this.active = null;
+        this.direction = 0;
+      }
+      return null;
+    }
+    this.recovery = Math.max(0, this.recovery - dt);
+    if (this.recovery > 0) return null;
+    const pool = this.creature.moves.filter(
+      (m) =>
+        this.age >= (this.available.get(m.id) ?? 0) &&
+        progress >= (m.minProgress ?? 0) &&
+        this.phase >= (m.minPhase ?? 0),
+    );
+    const guarantee = pool.find(
+      (m) =>
+        !this.seen.has(m.id) &&
+        m.guaranteeBefore !== undefined &&
+        progress >= m.guaranteeBefore,
+    );
+    const alternatives = pool.filter((m) => m.id !== this.previous);
+    const candidates = alternatives.length ? alternatives : pool;
+    const next =
+      guarantee ?? candidates[Math.floor(this.random() * candidates.length)];
+    if (!next) return null;
+    this.active = next;
+    this.elapsed = 0;
+    this.seen.add(next.id);
+    this.direction =
+      next.direction === "random"
+        ? this.random() < 0.5
+          ? -1
+          : 1
+        : (next.direction ?? 0);
+    return next;
+  }
+}
