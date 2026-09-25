@@ -7,6 +7,7 @@ const patterns: Partial<Record<GameEvent, number | number[]>> = {
   BITE: 30,
   HOOK_SUCCESS: [18, 25, 28],
   DIRECTIONAL_RUN_START: 20,
+  DIRECTION_REVERSED: 20,
   DIRECTION_ACQUIRED: 9,
   SURGE_START: 35,
   DIRECTIONAL_SURGE_START: 40,
@@ -215,8 +216,20 @@ export class Feedback {
         break;
       case "SURGE_START":
       case "DIRECTIONAL_SURGE_START":
+        this.splash(0.4, 0.32, 750);
+        this.tone(130, 0.3, 0.13, "triangle", false, 0, 70);
+        break;
+      case "SURGE_TELEGRAPH":
+        this.tone(250, 0.25, 0.09, "triangle", false, 0, 420);
+        this.splash(0.16, 0.08);
+        break;
+      case "DIRECTION_REVERSED":
       case "DIRECTIONAL_RUN_START":
-        this.splash(0.35, 0.2);
+        this.splash(0.25, 0.17, 1800);
+        this.tone(540, 0.14, 0.08, "sine", false, 0, 720);
+        break;
+      case "DIRECTION_ACQUIRED":
+        this.tone(820, 0.065, 0.035);
         break;
     }
   }

@@ -1,6 +1,6 @@
 # ARRANTZA — Prototype 1
 
-A mobile-first, portrait fishing game. The Lake's European Perch and Rainbow Trout are playable in first-clear order: cast, watch for a bite, press and hold Hook to Reel, release to ease Tension, land the Creature, reveal it, and discover it in the persistent Book. Holding too long snaps the line. After Trout's first catch, further casts repeat Trout until more Creatures are implemented.
+A mobile-first, portrait fishing game. Six Lake Creatures are playable in first-clear order: European Perch, Rainbow Trout, Common Carp, Northern Pike, Largemouth Bass, and European Eel. Cast, Hook, hold Reel, release to ease Tension, and follow directional runs. Each catch has its own illustration, reveal, and persistent Book entry. After Eel, further casts repeat Eel until the Wels Catfish boss is implemented.
 
 The canonical design is [`docs/Arrantza20Design202026-09-242019-25.md`](docs/Arrantza20Design202026-09-242019-25.md) (the supplied filename is encoded). Visual authority is defined in [`docs/references/REFERENCE_MANIFEST.md`](docs/references/REFERENCE_MANIFEST.md). These source documents and references are unchanged.
 
@@ -16,6 +16,8 @@ npm run dev
 Open the printed local URL. For a phone on the same network, use the printed network URL. Sound starts after the first interaction. Haptics and fullscreen depend on browser support.
 
 Touch: tap Cast, then make a fresh press when Hook appears. Keep that finger down to Reel; lift anywhere to Give Line. A second finger cannot take over the Reel. Mouse uses the same press/hold/release interaction. A focused action button also accepts held Space or Enter.
+
+For Carp onward, keep Reel held and slide slightly in the arrow's direction. Keep that direction until the Run ends, and follow reversals without lifting. A Surge warns of stronger resistance; release if necessary, then reel during calmer recovery windows. Eel can appear to tire before a renewed pull.
 
 Desktop uses a centered 9:16 frame. Touch devices in landscape show Rotate Device and pause. Settings, lost focus, and backgrounding freeze the encounter; resume deliberately. Resume always starts with Reel released. Book access is available when Ready.
 
@@ -55,9 +57,9 @@ Open `http://127.0.0.1:4174/arrantza/`.
 
 The Perch uses exactly +13/s Catch Progress, −3/s on release, +16/s Tension, and −50/s on release. The Trout is a stronger Calm fight: +12/s Catch Progress, −5/s on release, +20/s Tension, and −46/s on release. Both use critical Tension at 90, maximum 100, and a 0.8-second grace at maximum. Waiting is randomized 2–5 seconds; Hook lasts 0.9 seconds. Neither Creature has directional events or special attacks.
 
-Later Creature entries carry the documented base rates but remain unplayable. The behaviour schema and tested scheduler support Runs, Surges, Directional Surges, fake-out telegraphs, recovery, and persistent phase milestones. Future Stage rosters can be added without a global unlock ladder.
+Carp introduces Runs; Pike adds Surges; Bass adds faster Runs and reversals; Eel combines Directional Surges, deceptive lulls, and recovery windows. All combat configuration lives in `src/data.ts`. See [Lake combat tuning](docs/LAKE_COMBAT.md) for the exact documented rates and implementation choices within the move-timing ranges. Wels Catfish remains unplayable; the scheduler already supports sticky phase milestones. Future Stage rosters can be added without a global unlock ladder.
 
-Save key: `arrantza.save.v1`. Discoveries, first-clear index, settings, and last Book section persist locally. Existing Perch saves offer Trout on the next cast. Repeat Trout catches leave Lake at 2/7 and do not mark it cleared. Active encounters are not saved. Blocked storage falls back to memory and displays a notice; clearing site data removes the save.
+Save key: `arrantza.save.v1`. Discoveries, first-clear index, settings, and last Book section persist locally. Existing saves continue at their next required Creature; a 2/7 save offers Carp. Repeat Eel catches leave Lake at 6/7 and do not mark it cleared. Active encounters are not saved. Blocked storage falls back to memory and displays a notice; clearing site data removes the save.
 
 ## Checks
 
@@ -77,7 +79,7 @@ Set `PREVIEW_URL=http://127.0.0.1:4174/arrantza/` to exercise the Pages-style se
 
 ## Prototype limitations
 
-- Lake is the only playable Stage, with Perch and Trout playable. The Lake Book has seven slots; Swamp and Frozen Waters are browsable empty sections for future collections, not locked Stages.
+- Lake is the only playable Stage, with six of its seven Creatures playable. Wels Catfish is still unimplemented. Swamp and Frozen Waters are browsable empty sections for future collections, not locked Stages.
 - Player animation uses an isolated seated illustration with procedural posture/reel/rod motion. Synthesized music and sound effects are replaceable prototype audio.
 - No size/weight records, extra gear, shop, inventory, free roaming, or cloud save.
 - Browser-emulated mobile tests cannot validate physical vibration feel, phone speaker balance, or iOS fullscreen restrictions. Those require a real-device pass.

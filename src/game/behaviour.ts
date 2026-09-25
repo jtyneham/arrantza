@@ -11,6 +11,8 @@ export class Behaviour {
   previous = "";
   private available = new Map<string, number>();
   private seen = new Set<string>();
+  private nextMoveAt = 0;
+  private demandingEvents = 0;
   constructor(
     private creature: Creature,
     private random: () => number,
@@ -22,7 +24,20 @@ export class Behaviour {
     return a + this.random() * (b - a);
   }
   get resisting() {
-    return this.active !== null && this.elapsed >= this.active.telegraph;
+    if (!this.active || this.elapsed < (this.active.lull ?? 0) + this.active.telegraph)
+      return false;
+    const reverse = this.active.reverseAt;
+    return reverse === undefined || this.elapsed < reverse ||
+      this.elapsed >= reverse + (this.active.reverseReaction ?? 0);
+  }
+  get lulling() {
+    return !!this.active && this.elapsed < (this.active.lull ?? 0);
+  }
+  get telegraphing() {
+    return !!this.active && !this.lulling && !this.resisting;
+  }
+  get recovering() {
+    return !this.active && (this.recovery > 0 || this.age < this.nextMoveAt);
   }
   update(dt: number, progress: number) {
     this.age += dt;
@@ -39,9 +54,17 @@ export class Behaviour {
         this.elapsed >= this.active.reverseAt
       )
         this.direction = this.direction === 1 ? -1 : 1;
-      if (this.elapsed >= this.active.telegraph + this.active.duration) {
+      if (this.elapsed >= (this.active.lull ?? 0) + this.active.telegraph + this.active.duration) {
         this.previous = this.active.id;
         this.recovery = this.active.recovery;
+        this.demandingEvents++;
+        const recovery = this.creature.recoveryEvery;
+        if (recovery && this.demandingEvents >= recovery.events) {
+          this.recovery = Math.max(this.recovery, this.range(recovery.duration));
+          this.demandingEvents = 0;
+        }
+        this.nextMoveAt = this.age +
+          (this.creature.moveCooldown ? this.range(this.creature.moveCooldown) : 0);
         this.available.set(
           this.active.id,
           this.age + this.range(this.active.cooldown),
@@ -52,7 +75,7 @@ export class Behaviour {
       return null;
     }
     this.recovery = Math.max(0, this.recovery - dt);
-    if (this.recovery > 0) return null;
+    if (this.recovery > 0 || this.age < this.nextMoveAt) return null;
     const pool = this.creature.moves.filter(
       (m) =>
         this.age >= (this.available.get(m.id) ?? 0) &&

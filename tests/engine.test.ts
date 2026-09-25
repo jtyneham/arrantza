@@ -281,7 +281,7 @@ describe("local Book and independent Stage progression", () => {
       nextIndex: 2,
       cleared: false,
     });
-    expect(encounterFor(stages[0], 2, false).id).toBe("rainbow-trout");
+    expect(encounterFor(stages[0], 2, false).id).toBe("common-carp");
     expect(afterTrout.data.stages.swamp.nextIndex).toBe(0);
   });
   it("persists settings and last Book section", () => {

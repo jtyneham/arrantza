@@ -8,6 +8,7 @@ export class LakeScene extends Phaser.Scene {
   private ambient!: Phaser.GameObjects.Graphics;
   private clock = 0;
   private burst = 0;
+  private runOffset = 0;
   private reducedMotion = matchMedia("(prefers-reduced-motion: reduce)")
     .matches;
   private unsubscribe?: () => void;
@@ -44,6 +45,9 @@ export class LakeScene extends Phaser.Scene {
           "HOOK_SUCCESS",
           "LINE_SNAP",
           "LANDING",
+          "SURGE_START",
+          "DIRECTIONAL_SURGE_START",
+          "DIRECTION_REVERSED",
         ].includes(event)
       )
         this.burst = 1;
@@ -59,6 +63,12 @@ export class LakeScene extends Phaser.Scene {
     const m = this.model,
       t = this.clock,
       fight = m.state === "FIGHT";
+    const behaviour = m.behaviour;
+    const surge = fight && behaviour.resisting && behaviour.active?.kind !== "run";
+    const lulling = fight && behaviour.lulling;
+    const telegraph = fight && behaviour.telegraphing;
+    const direction = fight ? behaviour.direction : 0;
+    this.runOffset += (direction * 46 - this.runOffset) * Math.min(1, dt * 6);
     const tension = fight && m.held ? m.tension / 100 : 0;
     const landing = m.state === "LANDING",
       snap = m.state === "LINE_SNAP";
@@ -77,9 +87,8 @@ export class LakeScene extends Phaser.Scene {
     const g = this.ink;
     g.clear();
     const base = { x: 173, y: 650 + breathe };
-    const direction = m.behaviour.direction;
-    let tipX = 252 + tension * 31 + direction * 23;
-    let tipY = 448 - tension * 80;
+    let tipX = 252 + tension * 31 + this.runOffset * 0.5;
+    let tipY = 448 - tension * 80 - (surge && m.held ? 16 : 0);
     if (m.state === "CASTING") {
       tipX = 143 + Math.sin((cast * Math.PI) / 2) * 110;
       tipY = 345 + cast * 103;
@@ -136,8 +145,8 @@ export class LakeScene extends Phaser.Scene {
       by = base.y + (by - base.y) * cast - Math.sin(cast * Math.PI) * 210;
     }
     if (fight) {
-      bx += Math.sin(t * 5) * (3 + tension * 8) + direction * 42;
-      by += Math.cos(t * 6) * 3 + m.progress * 0.17;
+      bx += Math.sin(t * (telegraph ? 24 : 5)) * (lulling ? 1 : 3 + tension * 8) + this.runOffset;
+      by += Math.cos(t * 6) * (lulling ? 1 : surge ? 7 : 3) + m.progress * 0.17;
     }
     if (m.state === "BITE") by += 7 + Math.sin(t * 22) * 4;
     if (landing) {
@@ -165,7 +174,7 @@ export class LakeScene extends Phaser.Scene {
         g.lineStyle(
           fight ? 1.5 : 1,
           0xe1f4ec,
-          (1 - cycle) * (fight ? 0.8 : 0.46),
+          (1 - cycle) * (lulling ? 0.3 : fight ? 0.8 : 0.46),
         );
         g.strokeEllipse(
           bx,
@@ -175,12 +184,29 @@ export class LakeScene extends Phaser.Scene {
         );
       }
     }
-    if (this.burst > 0 || (fight && m.held)) {
+    // Mirrored trailing wakes distinguish lateral runs from radial resistance surges.
+    if (fight && direction) {
+      for (let i = 0; i < 4; i++) {
+        const spread = 8 + i * 5;
+        const tailX = bx - direction * (42 + i * 14);
+        g.lineStyle(surge ? 2.3 : 1.5, 0xe7f5e9, telegraph ? 0.4 : 0.7);
+        g.beginPath();
+        g.moveTo(tailX, by - spread * 0.45);
+        g.lineTo(bx + direction * 7, by + 2);
+        g.lineTo(tailX, by + spread);
+        g.strokePath();
+      }
+    }
+    if (telegraph && !direction) {
+      g.lineStyle(2, 0xffe4a8, 0.8);
+      g.strokeEllipse(bx, by + 3, 32 + Math.sin(t * 18) * 5, 10);
+    }
+    if (this.burst > 0 || (fight && !lulling && (m.held || surge))) {
       for (let i = 0; i < 13; i++) {
         const phase = (t * 1.8 + i * 0.173) % 1;
         const strength = Math.max(
           this.burst,
-          tension * 0.65 + (fight ? 0.13 : 0),
+          surge ? 1.2 : tension * 0.65 + (fight ? 0.13 : 0),
         );
         const x = bx + Math.sin(i * 13.2) * phase * 65 * strength;
         const y =

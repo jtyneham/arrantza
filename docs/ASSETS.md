@@ -1,5 +1,7 @@
 # Prototype asset provenance
 
+The four later Lake illustrations and their complete generation prompts are documented in [CREATURE_ASSETS.md](CREATURE_ASSETS.md).
+
 The original approved references and Master Design are unchanged. Runtime images are separate layers produced with the built-in imagegen tool from those approved references. Rod, line, bobber, water effects and interface are rendered independently.
 
 Saved files: `public/assets/environment/lake.png`, `public/assets/environment/harbor.png`, `public/assets/characters/angler.png`, `public/assets/creatures/european-perch.png`, `public/assets/creatures/rainbow-trout.png`, and `public/assets/ui/logo.png`. Transparent outputs retain their generated alpha. The logo is an extraction of reference 06, with the approved blue palette, rather than the incidental red/gold inspiration palette from reference 10.

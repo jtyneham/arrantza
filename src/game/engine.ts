@@ -21,6 +21,9 @@ export type GameEvent =
   | "MISSED_HOOK"
   | "DIRECTIONAL_RUN_START"
   | "DIRECTION_ACQUIRED"
+  | "DIRECTION_REVERSED"
+  | "SURGE_TELEGRAPH"
+  | "FAKE_OUT_START"
   | "SURGE_START"
   | "DIRECTIONAL_SURGE_START"
   | "TENSION_WARNING"
@@ -182,16 +185,25 @@ export class FishingGame {
     }
   }
   private fight(dt: number) {
+    const wasResisting = this.behaviour.resisting;
+    const wasLulling = this.behaviour.lulling;
+    const previousDirection = this.behaviour.direction;
     const move = this.behaviour.update(dt, this.progress);
-    if (move)
-      this.emit(
-        move.kind === "run"
-          ? "DIRECTIONAL_RUN_START"
-          : move.kind === "directional-surge"
-            ? "DIRECTIONAL_SURGE_START"
-            : "SURGE_START",
-      );
+    if (move) {
+      if (move.kind === "fake-out") this.emit("FAKE_OUT_START");
+      else if (move.direction) this.emit("DIRECTIONAL_RUN_START");
+      else this.emit("SURGE_TELEGRAPH");
+      this.acquired = false;
+    }
     const active = this.behaviour.active;
+    if (active && wasLulling && !this.behaviour.lulling)
+      this.emit("SURGE_TELEGRAPH");
+    if (active && previousDirection && this.behaviour.direction !== previousDirection) {
+      this.acquired = false;
+      this.emit("DIRECTION_REVERSED");
+    }
+    if (active && !wasResisting && this.behaviour.resisting && active.kind !== "run")
+      this.emit(active.kind === "directional-surge" ? "DIRECTIONAL_SURGE_START" : "SURGE_START");
     const directional = this.behaviour.direction !== 0;
     const correct = directional && this.direction === this.behaviour.direction;
     this.acquireCooldown = Math.max(0, this.acquireCooldown - dt);
@@ -203,6 +215,9 @@ export class FishingGame {
     if (this.held) {
       let rate = this.creature.tension,
         gain = this.creature.gain;
+      if (this.behaviour.recovering) rate = this.creature.recoveryTension ?? rate;
+      // The Eel appears to tire before its tell and renewed resistance.
+      if (this.behaviour.lulling) rate *= active?.lullTensionMultiplier ?? 1;
       if (active && this.behaviour.resisting) {
         rate =
           directional && !correct

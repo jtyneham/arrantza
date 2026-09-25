@@ -215,14 +215,24 @@ function updateHUD() {
     }
   }
   const direction = el("#direction");
-  direction.hidden = !fight || model.behaviour.direction === 0;
+  const behaviour = model.behaviour;
+  const requiredDirection = behaviour.direction;
+  const surge = !!behaviour.active && behaviour.active.kind !== "run" && !behaviour.lulling;
+  const combatPhase = behaviour.lulling ? "lull" : behaviour.telegraphing ? "telegraph"
+    : behaviour.resisting ? "resisting" : behaviour.recovering ? "recovery" : "calm";
+  root.dataset.combat = fight ? combatPhase : "calm";
+  direction.dataset.direction = String(requiredDirection);
+  direction.dataset.kind = surge ? "surge" : "run";
+  direction.dataset.phase = combatPhase;
+  direction.hidden = !fight || (!requiredDirection && !surge);
   textIfChanged(
     "#direction",
-    model.behaviour.direction === -1 ? "← HOLD LEFT" : "HOLD RIGHT →",
+    requiredDirection === -1 ? "← HOLD LEFT" : requiredDirection === 1 ? "HOLD RIGHT →"
+      : behaviour.telegraphing ? "⚠ STRONG PULL…" : "SURGE — GIVE LINE",
   );
   direction.classList.toggle(
     "acquired",
-    model.direction === model.behaviour.direction,
+    model.held && requiredDirection !== 0 && model.direction === requiredDirection,
   );
   const label = {
     READY: "CAST",
@@ -237,6 +247,15 @@ function updateHUD() {
   }[state];
   textIfChanged(".action-label", label);
   action.setAttribute("aria-label", label);
+  let fightHint = "Reeling in";
+  if (requiredDirection) fightHint = model.direction === requiredDirection
+    ? "Following the run — watch Tension" : "Keep holding and slide with the arrow";
+  if (surge) fightHint = behaviour.telegraphing
+    ? "A sudden pull is building…" : "Strong resistance — watch Tension";
+  if (behaviour.lulling) fightHint = "The pull eases…";
+  if (model.tension >= tuning.warningTension) fightHint = "Tension rising — release to ease";
+  if (model.tension >= tuning.criticalTension) fightHint = "⚠ Line at risk — release!";
+  if (!model.held) fightHint = "Giving line";
   const hint = !sceneReady
     ? "Arriving at the lake…"
     : {
@@ -244,14 +263,7 @@ function updateHUD() {
         CASTING: "",
         WAITING: "Watch the bobber…",
         BITE: "Bite! Press and hold",
-        FIGHT:
-          model.tension >= 90
-            ? "⚠ Line at risk — release!"
-            : model.tension >= 70 && model.held
-              ? "Tension rising — release to ease"
-              : model.held
-                ? "Reeling in"
-                : "Giving line",
+        FIGHT: fightHint,
         LANDING: "Bringing it ashore…",
         LINE_SNAP: "Line snapped!",
         REVEAL: "",
@@ -270,8 +282,8 @@ function updateHUD() {
         ? "Press and keep holding"
         : fight
           ? model.held
-            ? "Release to give line"
-            : "Hold to reel"
+            ? requiredDirection ? "Hold the direction · Lift to give line" : "Release to give line"
+            : requiredDirection ? "Hold Reel, then slide with the arrow" : "Hold to reel"
           : "",
   );
   if (lastState !== state) {
@@ -286,7 +298,7 @@ function updateHUD() {
 function renderReveal() {
   const creature: Creature = model.creature;
   const image = creature.artwork
-    ? `<img src="${asset(creature.artwork)}" alt="${creature.name} illustration">`
+    ? `<img src="${asset(creature.artwork)}" style="object-fit:${creature.artworkFit ?? "cover"}" alt="${creature.name} illustration">`
     : silhouette(0);
   el("#reveal").innerHTML =
     `<section class="reveal-panel" role="dialog" aria-modal="true" aria-labelledby="catch-name"><div class="reveal-heading"><div class="book-mark">${icon("fish")}</div><h2 class="brush-title">${firstCatch ? "New Book Entry" : "A fine catch"}</h2></div><div class="reveal-paper">${image}<h1 id="catch-name" class="brush-title">${creature.name}</h1><div class="reveal-ornament">— ${icon("fish")} —</div></div>${button("continue", "Continue", "play", true)}</section>`;

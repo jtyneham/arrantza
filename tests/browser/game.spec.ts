@@ -1,4 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
+const creatures = [
+  { id: "european-perch", name: "European Perch" },
+  { id: "rainbow-trout", name: "Rainbow Trout" },
+  { id: "common-carp", name: "Common Carp" },
+  { id: "northern-pike", name: "Northern Pike" },
+  { id: "largemouth-bass", name: "Largemouth Bass" },
+  { id: "european-eel", name: "European Eel" },
+];
 
 async function boot(page: Page) {
   await page.goto("./");
@@ -45,6 +53,12 @@ async function input(page: Page, touch: boolean) {
           touchPoints: [{ x: x + 130, y: y - 120, id: 1 }],
         });
       else await page.mouse.move(x + 130, y - 120);
+    },
+    slide: async (direction: number) => {
+      if (cdp) await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchMove", touchPoints: [{ x: x + direction * 32, y, id: 1 }],
+      });
+      else await page.mouse.move(x + direction * 32, y);
     },
     second: async () => {
       if (cdp) {
@@ -114,7 +128,7 @@ async function catchTrout(page: Page, touch: boolean) {
   ).toBeVisible();
 }
 
-test("Perch then Trout, persistent Book, repeat catch and navigation", async ({
+test("Perch then Trout, persistent Book and navigation", async ({
   page,
   isMobile,
 }, info) => {
@@ -167,11 +181,6 @@ test("Perch then Trout, persistent Book, repeat catch and navigation", async ({
   await page.screenshot({
     path: `test-results/${info.project.name}-book-two.png`,
   });
-  await page.getByRole("button", { name: "Back", exact: true }).click();
-  await catchTrout(page, isMobile);
-  await expect(
-    page.getByRole("heading", { name: "New Book Entry" }),
-  ).toHaveCount(0);
   await page.reload();
   await page.getByRole("button", { name: "Play", exact: true }).click();
   await expect(page.locator(".completion")).toContainText("2 / 7");
@@ -180,6 +189,105 @@ test("Perch then Trout, persistent Book, repeat catch and navigation", async ({
   await expect(page.locator(".creature-card.discovered img")).toHaveCount(2);
   expect(errors).toEqual([]);
 });
+
+async function catchFightingCreature(page: Page, touch: boolean, screenshotPrefix: string, pauseDuringRun = false) {
+  const control = await input(page, touch);
+  await control.down();
+  await control.up();
+  await waitBite(page);
+  await control.down();
+  let held = true;
+  let paused = false;
+  const seen = new Set<string>();
+  const arrows = new Set<string>();
+  for (let elapsed = 0; elapsed < 180000; elapsed += 150) {
+    const view = await page.evaluate(() => {
+      const root = document.querySelector<HTMLElement>("#game")!;
+      const cue = document.querySelector<HTMLElement>("#direction")!;
+      return { state: root.dataset.state, phase: root.dataset.combat,
+        kind: cue.hidden ? "none" : cue.dataset.kind,
+        direction: Number(cue.dataset.direction),
+        tension: Number(document.querySelector(".tension [role=progressbar]")!.getAttribute("aria-valuenow")) };
+    });
+    if (view.state !== "FIGHT") {
+      expect(view.state).toBe("LANDING");
+      break;
+    }
+    if (view.direction) arrows.add(String(view.direction));
+    const key = view.phase === "lull" ? "lull" : `${view.kind}-${view.phase}`;
+    if (!seen.has(key) && (view.kind !== "none" || view.phase === "lull")) {
+      seen.add(key);
+      await page.screenshot({ path: `test-results/${screenshotPrefix}-${key}.png` });
+    }
+    if (pauseDuringRun && !paused && view.direction) {
+      paused = true;
+      await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+      await control.up();
+      held = false;
+      await advance(page, 2000);
+      await expect(page.locator("#direction")).toHaveAttribute("data-direction", String(view.direction));
+      await expect(page.locator("#game")).toHaveAttribute("data-combat", view.phase!);
+      await page.getByRole("button", { name: "Resume", exact: true }).click();
+      await expect(page.locator("#game")).toHaveAttribute("data-held", "false");
+    }
+    const surge = view.kind === "surge" && view.phase === "resisting";
+    if (held && (view.tension >= 80 || (surge && view.tension >= 35))) {
+      await control.up(); held = false;
+    } else if (!held && (view.tension <= 5 || (!surge && view.tension <= 60))) {
+      await control.down(); held = true;
+    }
+    if (held) await control.slide(view.direction);
+    await advance(page, 150);
+  }
+  await control.up();
+  await advance(page, 2600);
+  await expect(page.locator("#game")).toHaveAttribute("data-state", "REVEAL");
+  return { seen, arrows };
+}
+
+for (const [offset, creature] of creatures.slice(2, 6).entries()) {
+  const index = offset + 2;
+  test(`${creature.name}: real combat, reveal, save and next encounter`, async ({ page, isMobile }, info) => {
+    test.setTimeout(240000);
+    const errors: string[] = [];
+    page.on("pageerror", error => errors.push(error.message));
+    page.on("response", response => { if (response.status() >= 400) errors.push(response.url()); });
+    await page.addInitScript(ids => {
+      if (!localStorage.getItem("arrantza.save.v1"))
+        localStorage.setItem("arrantza.save.v1", JSON.stringify({ version: 1,
+          stages: { lake: { discovered: ids } }, lastBookStage: "lake" }));
+    }, creatures.slice(0, index).map(c => c.id));
+    await boot(page);
+    const prefix = `${info.project.name}-${creature.id}`;
+    const result = await catchFightingCreature(page, isMobile, prefix, index === 2);
+    await expect(page.getByRole("heading", { name: creature.name, exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "New Book Entry" })).toBeVisible();
+    await expect.poll(() => page.locator(".reveal-paper img").evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+    await page.screenshot({ path: `test-results/${prefix}-reveal.png` });
+    if (index === 2) expect(result.seen.has("run-resisting")).toBe(true);
+    if (index === 3) expect(result.seen.has("surge-resisting")).toBe(true);
+    if (index === 4) expect(result.arrows.size).toBe(2);
+    if (index === 5) expect(result.seen.has("lull")).toBe(true);
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    if (index === 5) {
+      await catchFightingCreature(page, isMobile, `${prefix}-repeat`);
+      await expect(page.getByRole("heading", { name: creature.name, exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "New Book Entry" })).toHaveCount(0);
+      await page.getByRole("button", { name: "Continue", exact: true }).click();
+    }
+    await page.reload();
+    await page.getByRole("button", { name: "Play", exact: true }).click();
+    await expect(page.locator(".completion")).toContainText(`${index + 1} / 7`);
+    await page.getByRole("button", { name: "Book", exact: true }).click();
+    await expect(page.locator(".creature-card.discovered")).toHaveCount(index + 1);
+    await expect(page.getByRole("heading", { name: creature.name, exact: true })).toBeVisible();
+    await page.screenshot({ path: `test-results/${prefix}-book.png` });
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("arrantza.save.v1")!));
+    expect(saved.stages.lake.nextIndex).toBe(index + 1);
+    expect(saved.stages.lake.cleared).toBe(false);
+    expect(errors).toEqual([]);
+  });
+}
 
 test("pre-hold misses; continuous hold snaps; outside release is immediate", async ({
   page,
