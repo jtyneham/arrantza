@@ -1,6 +1,6 @@
 # ARRANTZA — Prototype 1
 
-A mobile-first, portrait fishing game. The complete Lake / European Perch loop is playable: cast, watch for a bite, press and hold Hook to Reel, release to ease Tension, land the Creature, reveal it, and discover it in the persistent Book. Holding too long snaps the line. Further casts repeat the Perch.
+A mobile-first, portrait fishing game. The Lake's European Perch and Rainbow Trout are playable in first-clear order: cast, watch for a bite, press and hold Hook to Reel, release to ease Tension, land the Creature, reveal it, and discover it in the persistent Book. Holding too long snaps the line. After Trout's first catch, further casts repeat Trout until more Creatures are implemented.
 
 The canonical design is [`docs/Arrantza20Design202026-09-242019-25.md`](docs/Arrantza20Design202026-09-242019-25.md) (the supplied filename is encoded). Visual authority is defined in [`docs/references/REFERENCE_MANIFEST.md`](docs/references/REFERENCE_MANIFEST.md). These source documents and references are unchanged.
 
@@ -28,7 +28,7 @@ npm run preview
 
 The static output is `dist/`. There is no backend, account, runtime CDN, or remote asset dependency. Vite uses `base: './'`; bundles and images resolve under both a domain root and a repository path such as `/arrantza/`.
 
-The included `.github/workflows/pages.yml` builds/tests on pushes to `main` and deploys `dist`. In the repository’s **Settings → Pages**, choose **GitHub Actions** as the source, then push or run the workflow manually. No deployment has been performed by this implementation task. The workflow follows [GitHub’s custom Pages workflow documentation](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
+The included `.github/workflows/pages.yml` builds/tests on pushes to `main` and deploys `dist`. In the repository’s **Settings → Pages**, choose **GitHub Actions** as the source, then push or run the workflow manually. The workflow follows [GitHub’s custom Pages workflow documentation](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
 
 To validate an actual repository subpath with strict missing-file responses:
 
@@ -53,11 +53,11 @@ Open `http://127.0.0.1:4174/arrantza/`.
 | `public/assets/`                          | Replaceable environment, character, Creature and logo layers                              |
 | `docs/ASSETS.md`                          | Asset provenance and generation prompts                                                   |
 
-The Perch uses exactly +13/s Catch Progress, −3/s on release, +16/s Tension, −50/s on release, critical at 90, maximum 100, and a 0.8-second grace at maximum. Waiting is randomized 2–5 seconds; Hook lasts 0.9 seconds. No fake nibbles or directional events occur for the Perch.
+The Perch uses exactly +13/s Catch Progress, −3/s on release, +16/s Tension, and −50/s on release. The Trout is a stronger Calm fight: +12/s Catch Progress, −5/s on release, +20/s Tension, and −46/s on release. Both use critical Tension at 90, maximum 100, and a 0.8-second grace at maximum. Waiting is randomized 2–5 seconds; Hook lasts 0.9 seconds. Neither Creature has directional events or special attacks.
 
 Later Creature entries carry the documented base rates but remain unplayable. The behaviour schema and tested scheduler support Runs, Surges, Directional Surges, fake-out telegraphs, recovery, and persistent phase milestones. Future Stage rosters can be added without a global unlock ladder.
 
-Save key: `arrantza.save.v1`. Discoveries, first-clear index, settings, and last Book section persist locally. Repeat Perch catches leave Lake at 1/7 and do not mark it cleared. Active encounters are not saved. Blocked storage falls back to memory and displays a notice; clearing site data removes the save.
+Save key: `arrantza.save.v1`. Discoveries, first-clear index, settings, and last Book section persist locally. Existing Perch saves offer Trout on the next cast. Repeat Trout catches leave Lake at 2/7 and do not mark it cleared. Active encounters are not saved. Blocked storage falls back to memory and displays a notice; clearing site data removes the save.
 
 ## Checks
 
@@ -77,7 +77,7 @@ Set `PREVIEW_URL=http://127.0.0.1:4174/arrantza/` to exercise the Pages-style se
 
 ## Prototype limitations
 
-- Lake and European Perch are the only playable content. The Lake Book has seven slots; Swamp and Frozen Waters are browsable empty sections for future collections, not locked Stages.
+- Lake is the only playable Stage, with Perch and Trout playable. The Lake Book has seven slots; Swamp and Frozen Waters are browsable empty sections for future collections, not locked Stages.
 - Player animation uses an isolated seated illustration with procedural posture/reel/rod motion. Synthesized music and sound effects are replaceable prototype audio.
 - No size/weight records, extra gear, shop, inventory, free roaming, or cloud save.
 - Browser-emulated mobile tests cannot validate physical vibration feel, phone speaker balance, or iOS fullscreen restrictions. Those require a real-device pass.

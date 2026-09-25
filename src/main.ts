@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import "./style.css";
-import { assets, asset, creatures, stages, tuning, encounterFor } from "./data";
+import { assets, asset, creatures, stages, tuning, encounterFor, type Creature } from "./data";
 import { FishingGame } from "./game/engine";
 import { SaveStore } from "./game/save";
 import { Feedback } from "./feedback";
@@ -172,7 +172,15 @@ function renderBook() {
   const selected =
     stages.find((s) => s.id === save.data.lastBookStage) ?? stages[0];
   const discovered = save.data.stages[selected.id].discovered;
-  ui.innerHTML = `<header class="book-header"><div class="book-mark">${icon("fish")}</div><h1 class="brush-title">Book</h1></header><nav class="book-tabs" aria-label="Book Stage sections">${stages.map((s) => `<button data-action="tab-${s.id}" aria-pressed="${selected.id === s.id}" class="book-tab ${s.id === selected.id ? "selected" : ""}">${s.name}</button>`).join("")}</nav><div class="book-count">${selected.name}<span>${icon("fish")} ${discovered.length} / ${selected.roster.length || "—"}</span></div><div class="book-grid">${selected.roster.length ? selected.roster.map((id, i) => `<article class="creature-card ${discovered.includes(id) ? "discovered" : ""}">${discovered.includes(id) && id === "european-perch" ? `<img src="${assets.perch}" alt="European Perch, olive green with dark bars and orange fins">` : silhouette(i)}<h2>${discovered.includes(id) ? creatures.find((c) => c.id === id)!.name : "???"}</h2></article>`).join("") : `<div class="book-empty">${icon("book")}<h2>Unwritten waters</h2><p>This Stage’s Creature collection will arrive in a later prototype.</p></div>`}</div><nav class="bottom-nav">${button("book-back", "Back", "back")}</nav>`;
+  const cards = selected.roster.map((id, i) => {
+    const creature = creatures.find((c) => c.id === id)!;
+    const known = discovered.includes(id);
+    const image = known && creature.artwork
+      ? `<img src="${asset(creature.artwork)}" alt="${creature.name} illustration">`
+      : silhouette(i);
+    return `<article class="creature-card ${known ? "discovered" : ""}">${image}<h2>${known ? creature.name : "???"}</h2></article>`;
+  }).join("");
+  ui.innerHTML = `<header class="book-header"><div class="book-mark">${icon("fish")}</div><h1 class="brush-title">Book</h1></header><nav class="book-tabs" aria-label="Book Stage sections">${stages.map((s) => `<button data-action="tab-${s.id}" aria-pressed="${selected.id === s.id}" class="book-tab ${s.id === selected.id ? "selected" : ""}">${s.name}</button>`).join("")}</nav><div class="book-count">${selected.name}<span>${icon("fish")} ${discovered.length} / ${selected.roster.length || "—"}</span></div><div class="book-grid">${selected.roster.length ? cards : `<div class="book-empty">${icon("book")}<h2>Unwritten waters</h2><p>This Stage’s Creature collection will arrive in a later prototype.</p></div>`}</div><nav class="bottom-nav">${button("book-back", "Back", "back")}</nav>`;
 }
 function updateHUD() {
   if (screen !== "lake") return;
@@ -276,8 +284,12 @@ function updateHUD() {
   }
 }
 function renderReveal() {
+  const creature: Creature = model.creature;
+  const image = creature.artwork
+    ? `<img src="${asset(creature.artwork)}" alt="${creature.name} illustration">`
+    : silhouette(0);
   el("#reveal").innerHTML =
-    `<section class="reveal-panel" role="dialog" aria-modal="true" aria-labelledby="catch-name"><div class="reveal-heading"><div class="book-mark">${icon("fish")}</div><h2 class="brush-title">${firstCatch ? "New Book Entry" : "A fine catch"}</h2></div><div class="reveal-paper"><img src="${assets.perch}" alt="European Perch"><h1 id="catch-name" class="brush-title">European Perch</h1><div class="reveal-ornament">— ${icon("fish")} —</div></div>${button("continue", "Continue", "play", true)}</section>`;
+    `<section class="reveal-panel" role="dialog" aria-modal="true" aria-labelledby="catch-name"><div class="reveal-heading"><div class="book-mark">${icon("fish")}</div><h2 class="brush-title">${firstCatch ? "New Book Entry" : "A fine catch"}</h2></div><div class="reveal-paper">${image}<h1 id="catch-name" class="brush-title">${creature.name}</h1><div class="reveal-ornament">— ${icon("fish")} —</div></div>${button("continue", "Continue", "play", true)}</section>`;
   el<HTMLButtonElement>('[data-action="continue"]').focus({
     preventScroll: true,
   });

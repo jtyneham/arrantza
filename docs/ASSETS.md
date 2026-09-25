@@ -2,7 +2,7 @@
 
 The original approved references and Master Design are unchanged. Runtime images are separate layers produced with the built-in imagegen tool from those approved references. Rod, line, bobber, water effects and interface are rendered independently.
 
-Saved files: `public/assets/environment/lake.png`, `public/assets/environment/harbor.png`, `public/assets/characters/angler.png`, `public/assets/creatures/european-perch.png`, and `public/assets/ui/logo.png`. Transparent outputs retain their generated alpha. The logo is an extraction of reference 06, with the approved blue palette, rather than the incidental red/gold inspiration palette from reference 10.
+Saved files: `public/assets/environment/lake.png`, `public/assets/environment/harbor.png`, `public/assets/characters/angler.png`, `public/assets/creatures/european-perch.png`, `public/assets/creatures/rainbow-trout.png`, and `public/assets/ui/logo.png`. Transparent outputs retain their generated alpha. The logo is an extraction of reference 06, with the approved blue palette, rather than the incidental red/gold inspiration palette from reference 10.
 
 ## Logo
 
@@ -24,3 +24,6 @@ Use case: background-extraction. Produce ONE isolated game sprite of the approve
 
 Use case: background-extraction. Preserve this exact European Perch artwork, silhouette, fins, markings and colors. Remove only the off-white background, replacing it with real transparency. No new details, text, scenery, or shadow. Tight composition with small transparent margin.
 
+## rainbow trout
+
+Use case: stylized-concept. Asset type: transparent-background Creature art for ARRANTZA Book and Catch Reveal. Generate ONE anatomically recognizable freshwater Rainbow Trout (Oncorhynchus mykiss), in left-facing clean side profile, entire fish from snout to forked tail visible, centered horizontally with modest transparent padding. Elongated torpedo-shaped salmonid body distinctly different from the deep-bodied European Perch, small adipose fin behind the dorsal, streamlined head. Olive blue-green upper back, silvery flanks and white belly, a clear softly rosy-pink lateral stripe along the full side from gill toward tail, many small dark spots over the back, upper sides, dorsal fin and tail. Restrained pale amber/gray fins, no bright orange/red Perch fins and no Perch vertical bars. Match the supplied approved Perch image ONLY for ARRANTZA's simplified illustrated rendering technique: readable silhouette, hand-painted cel-shaded color groups, restrained dark outlines, modest brush texture and species-specific naturalism. The supplied image is a style reference, not an edit target and not the species to copy. Genuinely transparent background; no water, shadow, labels, border, other fish or props. High-resolution polished creature still suited to the existing parchment Catch Reveal.

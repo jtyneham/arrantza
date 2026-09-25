@@ -20,6 +20,7 @@ export interface Creature {
   id: string;
   name: string;
   playable: boolean;
+  artwork?: string;
   gain: number;
   decay: number;
   tension: number;
@@ -32,6 +33,7 @@ export const creatures: Creature[] = [
     id: "european-perch",
     name: "European Perch",
     playable: true,
+    artwork: "creatures/european-perch.png",
     gain: 13,
     decay: 3,
     tension: 16,
@@ -41,7 +43,8 @@ export const creatures: Creature[] = [
   {
     id: "rainbow-trout",
     name: "Rainbow Trout",
-    playable: false,
+    playable: true,
+    artwork: "creatures/rainbow-trout.png",
     gain: 12,
     decay: 5,
     tension: 20,
@@ -174,5 +177,4 @@ export const assets = {
   lake: asset("environment/lake.png"),
   harbor: asset("environment/harbor.png"),
   angler: asset("characters/angler.png"),
-  perch: asset("creatures/european-perch.png"),
 };

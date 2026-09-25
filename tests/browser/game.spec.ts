@@ -90,10 +90,35 @@ async function catchPerch(page: Page, touch: boolean) {
   ).toBeVisible();
 }
 
-test("complete catch, persistent Book, repeat catch and navigation", async ({
+async function catchTrout(page: Page, touch: boolean) {
+  const control = await input(page, touch);
+  await control.down();
+  await control.up();
+  await waitBite(page);
+  await control.down();
+  await expect(page.locator("#game")).toHaveAttribute("data-held", "true");
+  await advance(page, 4000);
+  await expect(page.locator("#direction")).toBeHidden();
+  await control.up();
+  await advance(page, 1000);
+  await control.down();
+  await advance(page, 3000);
+  await control.up();
+  await advance(page, 1200);
+  await control.down();
+  await advance(page, 2300);
+  await control.up();
+  await advance(page, 2000);
+  await expect(
+    page.getByRole("heading", { name: "Rainbow Trout", exact: true }),
+  ).toBeVisible();
+}
+
+test("Perch then Trout, persistent Book, repeat catch and navigation", async ({
   page,
   isMobile,
 }, info) => {
+  test.setTimeout(120000);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("response", (response) => {
@@ -128,15 +153,31 @@ test("complete catch, persistent Book, repeat catch and navigation", async ({
     page.getByRole("button", { name: "Lake", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Back", exact: true }).click();
-  await catchPerch(page, isMobile);
+  await catchTrout(page, isMobile);
+  await expect(
+    page.getByRole("heading", { name: "New Book Entry" }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: `test-results/${info.project.name}-trout-catch.png`,
+  });
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Book", exact: true }).click();
+  await expect(page.locator(".creature-card.discovered")).toHaveCount(2);
+  await expect(page.locator(".creature-card.discovered img")).toHaveCount(2);
+  await page.screenshot({
+    path: `test-results/${info.project.name}-book-two.png`,
+  });
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await catchTrout(page, isMobile);
   await expect(
     page.getByRole("heading", { name: "New Book Entry" }),
   ).toHaveCount(0);
   await page.reload();
   await page.getByRole("button", { name: "Play", exact: true }).click();
-  await expect(page.locator(".completion")).toContainText("1 / 7");
+  await expect(page.locator(".completion")).toContainText("2 / 7");
   await page.getByRole("button", { name: "Book", exact: true }).click();
-  await expect(page.locator(".creature-card.discovered")).toHaveCount(1);
+  await expect(page.locator(".creature-card.discovered")).toHaveCount(2);
+  await expect(page.locator(".creature-card.discovered img")).toHaveCount(2);
   expect(errors).toEqual([]);
 });
 

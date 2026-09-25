@@ -156,6 +156,49 @@ describe("documented Perch loop", () => {
   });
 });
 
+describe("Rainbow Trout encounter", () => {
+  it("uses the documented stronger Calm rates without directional moves", () => {
+    const game = new FishingGame(() => 0, creatures[1]);
+    hook(game);
+    advance(game, 1);
+    expect(game.progress).toBeCloseTo(12, 5);
+    expect(game.tension).toBeCloseTo(20, 5);
+    expect(game.behaviour.active).toBeNull();
+    expect(game.behaviour.direction).toBe(0);
+    game.release(2);
+    advance(game, 0.1);
+    expect(game.progress).toBeCloseTo(11.5, 5);
+    expect(game.tension).toBeCloseTo(15.4, 5);
+  });
+  it("lands with repeated hold and release before the line snaps", () => {
+    const game = new FishingGame(() => 0, creatures[1]);
+    hook(game);
+    advance(game, 4);
+    game.release(2);
+    advance(game, 1);
+    game.press(3, 100);
+    advance(game, 3);
+    game.release(3);
+    advance(game, 1.2);
+    game.press(4, 100);
+    advance(game, 2.3);
+    expect(game.state).toBe("LANDING");
+    expect(game.tension).toBeLessThan(100);
+    advance(game, 1.8);
+    expect(game.state).toBe("REVEAL");
+    expect(game.creature.id).toBe("rainbow-trout");
+  });
+  it("snaps sooner than Perch if Reel stays held", () => {
+    const game = new FishingGame(() => 0, creatures[1]);
+    hook(game);
+    advance(game, 5.7);
+    expect(game.state).toBe("FIGHT");
+    expect(game.tension).toBe(100);
+    advance(game, 0.12);
+    expect(game.state).toBe("LINE_SNAP");
+  });
+});
+
 describe("future encounter extension seam", () => {
   const move: Move = {
     id: "run",
@@ -215,7 +258,7 @@ describe("local Book and independent Stage progression", () => {
       },
     };
   };
-  it("persists first discovery and does not duplicate or advance on repeats", () => {
+  it("advances from Perch to Trout, persists both, and does not duplicate repeats", () => {
     const storage = memory(),
       store = new SaveStore(storage);
     expect(store.catch("lake", "european-perch")).toBe(true);
@@ -229,7 +272,17 @@ describe("local Book and independent Stage progression", () => {
     expect(reloaded.data.stages.swamp.nextIndex).toBe(0);
     expect(
       encounterFor(stages[0], reloaded.data.stages.lake.nextIndex, false).id,
-    ).toBe("european-perch");
+    ).toBe("rainbow-trout");
+    expect(reloaded.catch("lake", "rainbow-trout")).toBe(true);
+    expect(reloaded.catch("lake", "rainbow-trout")).toBe(false);
+    const afterTrout = new SaveStore(storage);
+    expect(afterTrout.data.stages.lake).toEqual({
+      discovered: ["european-perch", "rainbow-trout"],
+      nextIndex: 2,
+      cleared: false,
+    });
+    expect(encounterFor(stages[0], 2, false).id).toBe("rainbow-trout");
+    expect(afterTrout.data.stages.swamp.nextIndex).toBe(0);
   });
   it("persists settings and last Book section", () => {
     const storage = memory(),
