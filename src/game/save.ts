@@ -84,6 +84,12 @@ export class SaveStore {
       this.available = false;
     }
   }
+  resetProgress(stageId?: string) {
+    for (const stage of stages) {
+      if (!stageId || stage.id === stageId) this.data.stages[stage.id] = freshStage();
+    }
+    this.write();
+  }
   catch(stageId: string, creatureId: string) {
     const stage = stages.find((s) => s.id === stageId);
     if (!stage?.roster.includes(creatureId)) return false;

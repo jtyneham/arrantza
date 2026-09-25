@@ -76,30 +76,56 @@ describe("documented Perch loop", () => {
     expect(game.tension).toBeCloseTo(27);
     expect(game.held).toBe(false);
   });
-  it("snaps after 0.8 seconds at maximum and quickly permits replay", () => {
+  it("snaps immediately at maximum and quickly permits replay", () => {
     const game = new FishingGame(() => 0);
     const events: GameEvent[] = [];
     game.onEvent((e) => events.push(e));
     hook(game);
-    advance(game, 6.9);
+    advance(game, 6.24);
     expect(game.state).toBe("FIGHT");
-    expect(game.tension).toBe(100);
-    advance(game, 0.17);
+    expect(game.tension).toBeLessThan(100);
+    advance(game, 0.02);
     expect(game.state).toBe("LINE_SNAP");
     expect(events).toContain("SNAP_IMMINENT");
     expect(events.filter((e) => e === "LINE_SNAP")).toHaveLength(1);
     advance(game, 1.9);
     expect(game.state).toBe("READY");
   });
-  it("resets snap grace as soon as release takes tension below maximum", () => {
+  it("can save the line by releasing just before maximum", () => {
     const game = new FishingGame(() => 0);
     hook(game);
-    advance(game, 6.7);
-    expect(game.snapTime).toBeGreaterThan(0.4);
+    advance(game, 6.24);
     game.release(2);
     advance(game, 0.01);
-    expect(game.snapTime).toBe(0);
+    expect(game.state).toBe("FIGHT");
     expect(game.tension).toBeLessThan(100);
+  });
+  it("escapes after three unattended seconds at zero progress, with pause and reel recovery", () => {
+    const game = new FishingGame(() => 0);
+    const events: GameEvent[] = [];
+    game.onEvent(e => events.push(e));
+    hook(game);
+    game.release(2);
+    advance(game, 2);
+    expect(game.state).toBe("FIGHT");
+    game.pause();
+    advance(game, 30);
+    expect(game.slackTime).toBeCloseTo(2);
+    game.resume();
+    game.press(3, 100);
+    expect(game.slackTime).toBe(0);
+    advance(game, 1);
+    game.release(3);
+    advance(game, 4);
+    expect(game.state).toBe("FIGHT");
+    expect(game.progress).toBeGreaterThan(0);
+    advance(game, 3.4);
+    expect(game.state).toBe("FAILURE");
+    expect(game.failure).toBe("escape");
+    expect(events.filter(e => e === "FISH_ESCAPED")).toHaveLength(1);
+    advance(game, 1.5);
+    expect(game.state).toBe("READY");
+    expect(game.slackTime).toBe(0);
   });
   it("lands automatically, keeps reveal open, and repeats Perch", () => {
     const game = new FishingGame(() => 0);
@@ -191,10 +217,10 @@ describe("Rainbow Trout encounter", () => {
   it("snaps sooner than Perch if Reel stays held", () => {
     const game = new FishingGame(() => 0, creatures[1]);
     hook(game);
-    advance(game, 5.7);
+    advance(game, 4.99);
     expect(game.state).toBe("FIGHT");
-    expect(game.tension).toBe(100);
-    advance(game, 0.12);
+    expect(game.tension).toBeLessThan(100);
+    advance(game, 0.02);
     expect(game.state).toBe("LINE_SNAP");
   });
 });
@@ -293,6 +319,19 @@ describe("local Book and independent Stage progression", () => {
     const loaded = new SaveStore(storage);
     expect(loaded.data.preferences).toEqual(store.data.preferences);
     expect(loaded.data.lastBookStage).toBe("swamp");
+  });
+  it("resets one Stage or all Stages durably while preserving preferences", () => {
+    const storage = memory(), store = new SaveStore(storage);
+    store.catch("lake", "european-perch");
+    store.data.stages.swamp = { discovered: [], nextIndex: 3, cleared: true };
+    store.data.preferences = { music: 0.2, sfx: 0.7, haptics: false };
+    store.resetProgress("lake");
+    expect(store.data.stages.lake).toEqual({ discovered: [], nextIndex: 0, cleared: false });
+    expect(store.data.stages.swamp.nextIndex).toBe(3);
+    expect(new SaveStore(storage).data.stages.lake.discovered).toEqual([]);
+    store.resetProgress();
+    expect(Object.values(store.data.stages).every(s => s.nextIndex === 0 && !s.cleared && s.discovered.length === 0)).toBe(true);
+    expect(new SaveStore(storage).data.preferences).toEqual({ music: 0.2, sfx: 0.7, haptics: false });
   });
   it("survives corrupt and blocked storage without breaking a catch", () => {
     const storage = memory();

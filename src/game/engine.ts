@@ -19,6 +19,7 @@ export type GameEvent =
   | "REEL_START"
   | "REEL_RELEASE"
   | "MISSED_HOOK"
+  | "FISH_ESCAPED"
   | "DIRECTIONAL_RUN_START"
   | "DIRECTION_ACQUIRED"
   | "DIRECTION_REVERSED"
@@ -42,11 +43,12 @@ export class FishingGame {
   elapsed = 0;
   progress = 0;
   tension = 0;
-  snapTime = 0;
+  slackTime = 0;
+  dragX = 0;
   held = false;
   pointer: number | null = null;
   direction: Direction = 0;
-  failure: "miss" | "snap" = "miss";
+  failure: "miss" | "snap" | "escape" = "miss";
   creature: Creature;
   behaviour: Behaviour;
   private startX = 0;
@@ -80,7 +82,7 @@ export class FishingGame {
     this.cancelInput();
     this.creature = creature;
     this.behaviour = new Behaviour(creature, this.random);
-    this.progress = this.tension = this.snapTime = 0;
+    this.progress = this.tension = this.slackTime = 0;
     this.warning = this.critical = this.imminent = this.acquired = false;
     this.pulse = this.acquireCooldown = 0;
     this.enter("READY");
@@ -100,6 +102,7 @@ export class FishingGame {
       this.emit("HOOK_SUCCESS");
       this.emit("REEL_START");
     } else if (this.state === "FIGHT") {
+      this.slackTime = 0;
       this.held = true;
       this.emit("REEL_START");
     }
@@ -108,6 +111,7 @@ export class FishingGame {
   move(id: number, x: number) {
     if (this.pointer !== id || !this.held) return;
     const dx = x - this.startX;
+    this.dragX = dx;
     this.direction =
       Math.abs(dx) < tuning.directionalDeadZone ? 0 : dx < 0 ? -1 : 1;
   }
@@ -117,6 +121,7 @@ export class FishingGame {
     this.held = false;
     this.pointer = null;
     this.direction = 0;
+    this.dragX = 0;
   }
   cancelInput() {
     if (this.pointer !== null) this.release(this.pointer);
@@ -254,15 +259,20 @@ export class FishingGame {
         this.pulse = 0;
       }
     }
-    this.snapTime = this.tension >= tuning.maxTension ? this.snapTime + dt : 0;
-    if (this.snapTime >= tuning.snapImminent && !this.imminent)
+    if (this.tension >= tuning.snapImminent && !this.imminent)
       this.emit("SNAP_IMMINENT");
-    this.imminent = this.snapTime >= tuning.snapImminent;
-    if (this.snapTime >= tuning.snapGrace) {
+    this.imminent = this.tension >= tuning.snapImminent;
+    this.slackTime = !this.held && this.progress <= 0 ? this.slackTime + dt : 0;
+    if (this.tension >= tuning.maxTension) {
       this.cancelInput();
       this.failure = "snap";
       this.enter("LINE_SNAP");
       this.emit("LINE_SNAP");
+    } else if (this.slackTime >= tuning.slackEscape) {
+      this.cancelInput();
+      this.failure = "escape";
+      this.enter("FAILURE");
+      this.emit("FISH_ESCAPED");
     } else if (this.progress >= 100) {
       this.cancelInput();
       this.enter("LANDING");

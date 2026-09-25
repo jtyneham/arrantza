@@ -16,11 +16,11 @@ function step(game: FishingGame, seconds: number) {
 
 describe("Lake Creatures 3–6", () => {
   it.each([
-    [2, 11, 7, 21, 43, 27, 48],
-    [3, 10, 9, 25, 40, 34, 55],
+    [2, 11, 7, 21, 43, 23, 32],
+    [3, 10, 9, 22, 40, 27, 38],
     [4, 10, 11, 23, 39, 31, 58],
     [5, 9, 14, 27, 37, 36, 62],
-  ])("Creature %i uses documented base and continuous directional rates", (index, gain, decay, tension, recovery, correctRate, wrongRate) => {
+  ])("Creature %i uses tuned base and continuous directional rates", (index, gain, decay, tension, recovery, correctRate, wrongRate) => {
     const creature = creatures[index];
     const game = new FishingGame(() => 0, creature);
     game.state = "FIGHT";

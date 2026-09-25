@@ -10,7 +10,8 @@ const creatures = [
 
 async function boot(page: Page) {
   await page.goto("./");
-  await page.clock.install();
+  await page.clock.install({ time: new Date("2026-09-25T12:00:00Z") });
+  await page.clock.pauseAt(new Date("2026-09-25T12:00:01Z"));
   await expect(
     page.getByRole("button", { name: "Play", exact: true }),
   ).toBeVisible();
@@ -312,7 +313,7 @@ test("pre-hold misses; continuous hold snaps; outside release is immediate", asy
   await page.screenshot({
     path: `test-results/${info.project.name}-fight.png`,
   });
-  await advance(page, 1300);
+  await advance(page, 500);
   await expect(page.locator("#game")).toHaveAttribute(
     "data-state",
     "LINE_SNAP",
@@ -458,4 +459,172 @@ test("small portrait layout keeps controls and Book reachable", async ({
   await page.screenshot({
     path: `test-results/${info.project.name}-select.png`,
   });
+});
+
+// Feedback regressions: menu taps must be true touch taps on the mobile project.
+async function activate(page: Page, action: string, touch: boolean) {
+  const container = await page.locator("#overlay").isVisible() ? page.locator("#overlay") : page.locator("#ui");
+  const target = container.locator(`[data-action="${action}"]`);
+  if (touch) await target.tap(); else await target.click();
+}
+async function feedbackBoot(page: Page, touch: boolean) {
+  await page.goto("./");
+  await page.clock.install({ time: new Date("2026-09-25T12:00:00Z") });
+  await page.clock.pauseAt(new Date("2026-09-25T12:00:01Z"));
+  await activate(page, "play", touch);
+  await activate(page, "enter-lake", touch);
+  await expect(page.locator("#game")).toHaveAttribute("data-state", "READY");
+}
+
+test("test picker: confirmation, repeat encounters, save isolation and normal progression", async ({ page, isMobile }, info) => {
+  await feedbackBoot(page, isMobile);
+  await activate(page, "picker", isMobile);
+  await expect(page.locator(".picker-grid img")).toHaveCount(6);
+  await page.screenshot({ path: `test-results/${info.project.name}-picker.png` });
+  await activate(page, "pick-common-carp", isMobile);
+  await activate(page, "close-settings", isMobile);
+  await expect(page.locator(".test-label")).toBeEmpty();
+  await activate(page, "picker", isMobile);
+  await expect(page.locator('[data-action="pick-normal"]')).toHaveAttribute("aria-pressed", "true");
+  await activate(page, "pick-european-perch", isMobile);
+  await activate(page, "confirm-creature", isMobile);
+  await expect(page.locator("#overlay")).toBeHidden();
+  await expect(page.locator(".test-label")).toHaveText("Test encounter");
+  const before = await page.evaluate(() => localStorage.getItem("arrantza.save.v1"));
+  for (let i = 0; i < 2; i++) {
+    await catchPerch(page, isMobile);
+    await expect(page.getByRole("heading", { name: "Test catch", exact: true })).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem("arrantza.save.v1"))).toBe(before);
+    await activate(page, "continue", isMobile);
+  }
+  await activate(page, "book", isMobile);
+  await expect(page.locator(".creature-card.discovered")).toHaveCount(0);
+  await activate(page, "book-back", isMobile);
+  await expect(page.locator(".lake-intro")).toHaveCount(0);
+  await activate(page, "picker", isMobile);
+  await expect(page.locator('[data-action="pick-european-perch"]')).toHaveAttribute("aria-pressed", "true");
+  await activate(page, "pick-normal", isMobile);
+  await activate(page, "confirm-creature", isMobile);
+  await catchPerch(page, isMobile);
+  await expect(page.getByRole("heading", { name: "New Book Entry" })).toBeVisible();
+});
+
+test("slack escape pauses safely, warns, retries and retains the selected fish", async ({ page, isMobile }) => {
+  await feedbackBoot(page, isMobile);
+  await activate(page, "picker", isMobile);
+  await activate(page, "pick-common-carp", isMobile);
+  await activate(page, "confirm-creature", isMobile);
+  const control = await input(page, isMobile);
+  await control.down(); await control.up(); await waitBite(page);
+  await control.down(); await control.up();
+  await advance(page, 1800);
+  await expect(page.locator("#fishing-hint")).toContainText("Fish slipping away");
+  await activate(page, "settings", isMobile);
+  await advance(page, 10000);
+  await expect(page.locator("#game")).toHaveAttribute("data-state", "FIGHT");
+  const frame = (await page.locator("#game").boundingBox())!;
+  if (isMobile) await page.touchscreen.tap(frame.x + 4, frame.y + frame.height / 2);
+  else await page.mouse.click(frame.x + 4, frame.y + frame.height / 2);
+  await expect(page.locator("#overlay")).toBeHidden();
+  await expect(page.locator("#game")).toHaveAttribute("data-held", "false");
+  await advance(page, 1400);
+  await expect(page.locator("#fishing-hint")).toContainText("Fish escaped");
+  await advance(page, 1500);
+  await expect(page.locator("#game")).toHaveAttribute("data-state", "READY");
+  await activate(page, "picker", isMobile);
+  await expect(page.locator('[data-action="pick-common-carp"]')).toHaveAttribute("aria-pressed", "true");
+});
+
+test("arrow-only cues and bounded held drag return to center on release", async ({ page, isMobile }, info) => {
+  await feedbackBoot(page, isMobile);
+  await activate(page, "picker", isMobile);
+  await activate(page, "pick-common-carp", isMobile);
+  await activate(page, "confirm-creature", isMobile);
+  const action = page.locator("#action");
+  const origin = (await action.boundingBox())!;
+  const frame = (await page.locator("#game").boundingBox())!;
+  const control = await input(page, isMobile);
+  await control.down(); await control.up(); await waitBite(page); await control.down();
+  await advance(page, 3050);
+  await expect(page.locator("#direction")).toHaveText(/^[⬅➡]$/u);
+  expect(await page.locator("#direction").evaluate(e => getComputedStyle(e).animationName)).toBe("direction-pulse");
+  await control.outside(); await advance(page, 20);
+  const moved = (await action.boundingBox())!;
+  expect(moved.x - origin.x).toBeCloseTo(frame.width * 0.16, 0);
+  expect(moved.y).toBeCloseTo(origin.y, 0);
+  await expect(page.locator("#game")).toHaveAttribute("data-held", "true");
+  expect(await page.locator("#meters").innerText()).not.toContain("%");
+  await page.screenshot({ path: `test-results/${info.project.name}-drag.png` });
+  await control.up();
+  expect((await action.boundingBox())!.x).toBeCloseTo(origin.x, 0);
+});
+
+test("title backgrounds, reset confirmation, Book boss layout and stage menu order", async ({ page, isMobile }, info) => {
+  await page.addInitScript(() => {
+    Math.random = () => 0.9;
+    if (!localStorage.getItem("arrantza.save.v1")) localStorage.setItem("arrantza.save.v1", JSON.stringify({ version: 1,
+      stages: { lake: { discovered: ["european-perch", "rainbow-trout"] } },
+      preferences: { music: 0.2, sfx: 0.4, haptics: false } }));
+  });
+  await page.goto("./");
+  await page.clock.install({ time: new Date("2026-09-25T12:00:00Z") });
+  await page.clock.pauseAt(new Date("2026-09-25T12:00:01Z"));
+  await expect(page.locator("#title-backdrop")).toHaveAttribute("src", /harbor-night.png$/);
+  expect(await page.locator("#title-backdrop").evaluate((e: HTMLImageElement) => e.complete && e.naturalWidth > 0)).toBe(true);
+  await page.screenshot({ path: `test-results/${info.project.name}-night.png` });
+  await activate(page, "settings", isMobile);
+  await expect(page.locator('#overlay [data-action="fullscreen"]')).toHaveCount(0);
+  await activate(page, "reset-progress", isMobile);
+  await activate(page, "reset-stage-lake", isMobile);
+  await activate(page, "reset-progress", isMobile); // Cancel confirmation.
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("arrantza.save.v1")!).stages.lake.discovered.length)).toBe(2);
+  await activate(page, "reset-stage-lake", isMobile);
+  await activate(page, "confirm-reset", isMobile);
+  await activate(page, "reset-all", isMobile);
+  await activate(page, "confirm-reset", isMobile);
+  await activate(page, "settings", isMobile);
+  await expect(page.getByRole("slider", { name: "Music volume" })).toHaveValue("20");
+  await expect(page.getByRole("slider", { name: "SFX volume" })).toHaveValue("40");
+  await expect(page.getByLabel("Haptics", { exact: true })).not.toBeChecked();
+  await activate(page, "close-settings", isMobile);
+  await activate(page, "play", isMobile);
+  expect(await page.locator("#title-backdrop").evaluate(e => getComputedStyle(e).filter)).toBe("blur(3px)");
+  expect(await page.locator(".stage-card").evaluate(e => getComputedStyle(e).filter)).toBe("none");
+  await page.screenshot({ path: `test-results/${info.project.name}-night-select.png` });
+  await expect(page.locator(".completion")).toContainText("0 / 7");
+  await activate(page, "book", isMobile);
+  const cards = page.locator(".creature-card");
+  const first = (await cards.nth(0).boundingBox())!, last = (await cards.nth(6).boundingBox())!;
+  const frame = (await page.locator("#game").boundingBox())!;
+  expect(last.width).toBeCloseTo(first.width, 0);
+  expect(last.x + last.width / 2).toBeCloseTo(frame.x + frame.width / 2, 0);
+  await activate(page, "book-back", isMobile);
+  await activate(page, "enter-lake", isMobile);
+  await advance(page, 2500);
+  await expect(page.locator(".lake-intro")).toHaveText("Lake");
+  expect(await page.locator(".lake-intro").evaluate(e => Number(getComputedStyle(e).opacity))).toBeGreaterThan(0);
+  await activate(page, "settings", isMobile);
+  expect(await page.locator(".modal button span").allTextContents()).toEqual(["Test vibration", "Resume", "Stage Select", "Full Screen", "Title Screen"]);
+  await page.screenshot({ path: `test-results/${info.project.name}-settings.png` });
+  await activate(page, "title", isMobile);
+  await expect(page.locator("#title-backdrop")).toHaveAttribute("src", /harbor-night.png$/);
+  await page.reload();
+  await activate(page, "play", isMobile);
+  await expect(page.locator(".completion")).toContainText("0 / 7");
+});
+
+test("non-primary synthesized clicks activate menus; unavailable haptics do not break them", async ({ page }) => {
+  await page.addInitScript(() => {
+    Math.random = () => 0.1;
+    Object.defineProperty(navigator, "vibrate", { writable: true, configurable: true, value: () => { throw new Error("Unavailable"); } });
+  });
+  await page.goto("./");
+  await expect(page.locator("#title-backdrop")).toHaveAttribute("src", /harbor.png$/);
+  await page.locator('[data-action="settings"]').evaluate(e => e.dispatchEvent(new PointerEvent("click", { bubbles: true, isPrimary: false, pointerType: "touch" })));
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.locator('[data-action="haptic-test"]').click();
+  await expect(page.locator("#toast")).toContainText("unavailable");
+  await page.locator('[data-action="close-settings"]').click();
+  await page.locator('[data-action="play"]').click();
+  await expect(page.locator("#game")).toHaveAttribute("data-screen", "select");
 });

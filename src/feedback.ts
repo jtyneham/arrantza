@@ -26,8 +26,6 @@ export class Feedback {
   private music?: GainNode;
   private sfx?: GainNode;
   private reel?: GainNode;
-  private strain?: GainNode;
-  private strainOsc?: OscillatorNode;
   private ambience?: GainNode;
   private nextNote = 0;
   private note = 0;
@@ -72,12 +70,6 @@ export class Feedback {
     this.reel.gain.value = 0;
     gear.connect(this.reel).connect(this.sfx);
     gear.start();
-    this.strainOsc = ctx.createOscillator();
-    this.strainOsc.type = "sine";
-    this.strain = ctx.createGain();
-    this.strain.gain.value = 0;
-    this.strainOsc.connect(this.strain).connect(this.sfx);
-    this.strainOsc.start();
   }
   setMode(mode: "title" | "lake") {
     if (this.mode !== mode) {
@@ -90,7 +82,7 @@ export class Feedback {
     this.paused = paused;
     if (paused) {
       this.silenceReel();
-      navigator.vibrate?.(0);
+      this.vibrate(0);
       void this.ctx?.suspend().catch(() => {});
     } else void this.ctx?.resume().catch(() => {});
   }
@@ -98,8 +90,13 @@ export class Feedback {
     if (!this.ctx) return;
     this.reel?.gain.cancelScheduledValues(this.ctx.currentTime);
     this.reel?.gain.setValueAtTime(0, this.ctx.currentTime);
-    this.strain?.gain.cancelScheduledValues(this.ctx.currentTime);
-    this.strain?.gain.setValueAtTime(0, this.ctx.currentTime);
+  }
+  private vibrate(pattern: number | number[]) {
+    try { return navigator.vibrate?.(pattern) ?? false; }
+    catch { return false; }
+  }
+  testVibration() {
+    return this.settings().haptics && this.vibrate([100, 70, 100]);
   }
   private tone(
     freq: number,
@@ -141,7 +138,7 @@ export class Feedback {
     );
     const data = buffer.getChannelData(0);
     for (let i = 0; i < data.length; i++)
-      data[i] = (Math.random() * 2 - 1) * (1 - i / data.length) ** 2;
+      data[i] = (Math.random() * 2 - 1) * Math.min(1, i / (ctx.sampleRate * 0.035)) * (1 - i / data.length) ** 2;
     const source = ctx.createBufferSource(),
       filter = ctx.createBiquadFilter(),
       volume = ctx.createGain();
@@ -160,7 +157,7 @@ export class Feedback {
   event(event: GameEvent) {
     if (this.paused) return;
     const pattern = patterns[event];
-    if (pattern && this.settings().haptics) navigator.vibrate?.(pattern);
+    if (pattern && this.settings().haptics) this.vibrate(pattern);
     if (
       ["BITE", "CRITICAL_TENSION", "LINE_SNAP", "CATCH_REVEAL"].includes(event)
     )
@@ -201,13 +198,14 @@ export class Feedback {
         this.splash(0.13, 0.3, 5500);
         this.tone(610, 0.3, 0.22, "triangle", false, 0, 80);
         break;
+      case "FISH_ESCAPED":
       case "MISSED_HOOK":
         this.splash(0.2, 0.13);
         this.tone(240, 0.3, 0.09, "sine", false, 0, 160);
         break;
       case "LANDING":
         this.silenceReel();
-        this.splash(0.4, 0.2);
+        this.splash(0.65, 0.14, 550);
         break;
       case "CATCH_REVEAL":
         [392, 494, 587, 784].forEach((f, i) =>
@@ -247,19 +245,7 @@ export class Feedback {
     this.ambience!.gain.setTargetAtTime(inLake ? 0.12 : 0.06, now, 0.2);
     const reeling =
       inLake && game.state === "FIGHT" && game.held && !game.paused;
-    this.reel!.gain.setValueAtTime(
-      reeling ? 0.018 + game.tension * 0.00025 : 0,
-      now,
-    );
-    this.strain!.gain.setValueAtTime(
-      reeling ? Math.max(0, game.tension - 35) * 0.0007 : 0,
-      now,
-    );
-    this.strainOsc!.frequency.setTargetAtTime(
-      110 + game.tension * 7,
-      now,
-      0.05,
-    );
+    this.reel!.gain.setValueAtTime(reeling ? 0.025 : 0, now);
     if (now >= this.nextNote) {
       const melody =
         this.mode === "lake"

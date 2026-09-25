@@ -8,7 +8,12 @@ import { LakeScene } from "./render/LakeScene";
 import { icon, silhouette } from "./ui/icons";
 
 type Screen = "title" | "select" | "lake" | "book";
-type Overlay = "settings" | "resume" | null;
+type Overlay = "settings" | "resume" | "picker" | "reset" | "reset-confirm" | null;
+// TEMPORARY PLAYTEST TOOL: remove picker state, UI and catch bypass before release.
+let testCreatureId: string | null = null;
+let pendingCreatureId: string | null = null;
+let resetTarget = "all";
+let showLakeIntro = false;
 const el = <T extends HTMLElement = HTMLElement>(selector: string) =>
   document.querySelector<T>(selector)!;
 function textIfChanged(selector: string, value: string) {
@@ -24,10 +29,13 @@ root.style.setProperty(
   "--lake-art",
   `url('${new URL(assets.lake, document.baseURI).href}')`,
 );
-root.style.setProperty(
-  "--harbor-art",
-  `url('${new URL(assets.harbor, document.baseURI).href}')`,
-);
+const backdrop = document.createElement("img");
+backdrop.id = "title-backdrop";
+backdrop.alt = "";
+const nightTitle = Math.random() >= 0.5;
+root.dataset.titleTone = nightTitle ? "night" : "day";
+backdrop.src = nightTitle ? assets.harborNight : assets.harbor;
+root.prepend(backdrop);
 const model = new FishingGame();
 let storage: Storage | null = null;
 try {
@@ -64,6 +72,7 @@ function notify(message: string) {
   toastTimer = window.setTimeout(() => (toast.hidden = true), 4500);
 }
 function lakeEncounter() {
+  if (testCreatureId) return creatures.find(c => c.id === testCreatureId)!;
   const progress = save.data.stages.lake;
   return encounterFor(stages[0], progress.nextIndex, progress.cleared);
 }
@@ -81,6 +90,7 @@ function synchronizePause() {
 }
 function setScreen(next: Screen) {
   model.cancelInput();
+  if (next === "title" || next === "select") testCreatureId = null;
   screen = next;
   overlay = null;
   root.dataset.screen = screen;
@@ -103,7 +113,7 @@ function openBook(from: Screen) {
   setScreen("book");
 }
 function showOverlay(next: Overlay) {
-  if (next) previousFocus = document.activeElement as HTMLElement;
+  if (next && !overlay) previousFocus = document.activeElement as HTMLElement;
   overlay = next;
   if (next) pause();
   renderOverlay();
@@ -128,7 +138,8 @@ function render() {
         "",
       )}</div><nav class="bottom-nav" aria-label="Stage navigation">${button("title", "Back", "back")}${button("book", "Book", "book")}</nav>`;
   } else if (screen === "lake") {
-    ui.innerHTML = `<nav class="stage-tools"><button class="icon-button" data-action="book" aria-label="Book">${icon("book")}</button><button class="icon-button" data-action="settings" aria-label="Settings">${icon("settings")}</button></nav><div class="lake-intro" aria-hidden="true">Lake<span>A moment by the water</span></div><section class="fight-cluster" aria-label="Fishing controls"><div id="direction" class="direction" hidden></div><div id="meters" hidden><div class="meter-block tension"><div class="meter-label"><span>TENSION</span><span id="tension-number">0%</span></div><div class="meter-track" role="progressbar" aria-label="Tension" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="tension-fill" class="meter-fill"></div></div></div><div class="meter-block catch"><div class="meter-label"><span>CATCH PROGRESS</span><span id="catch-number">0%</span></div><div class="meter-track" role="progressbar" aria-label="Catch Progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="catch-fill" class="meter-fill"></div></div></div></div><p id="fishing-hint" class="fishing-hint" role="status"></p><button id="action" class="action-button" aria-label="Cast"><span class="action-icon">${icon("cast")}</span><span class="action-label">CAST</span></button><span id="hold-hint" class="hold-hint">Tap to cast</span></section><div id="reveal"></div>`;
+    ui.innerHTML = `<nav class="stage-tools"><button class="icon-button" data-action="book" aria-label="Book">${icon("book")}</button><button class="icon-button" data-action="settings" aria-label="Settings">${icon("settings")}</button></nav><button class="icon-button test-picker-button" data-action="picker" aria-label="Choose test Creature">${icon("fish")}</button><div class="test-label">${testCreatureId ? "Test encounter" : ""}</div>${showLakeIntro ? '<div class="lake-intro" aria-hidden="true">Lake</div>' : ""}<section class="fight-cluster" aria-label="Fishing controls"><div id="direction" class="direction" hidden></div><div id="meters" hidden><div class="meter-block tension"><div class="meter-label"><span>TENSION</span></div><div class="meter-track" role="progressbar" aria-label="Tension" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="tension-fill" class="meter-fill"></div></div></div><div class="meter-block catch"><div class="meter-label"><span>CATCH PROGRESS</span></div><div class="meter-track" role="progressbar" aria-label="Catch Progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="catch-fill" class="meter-fill"></div></div></div></div><p id="fishing-hint" class="fishing-hint" role="status"></p><button id="action" class="action-button" aria-label="Cast"><span class="action-icon">${icon("cast")}</span><span class="action-label">CAST</span></button><span id="hold-hint" class="hold-hint">Tap to cast</span></section><div id="reveal"></div>`;
+    showLakeIntro = false;
     const action = el<HTMLButtonElement>("#action");
     action.addEventListener("pointerdown", (e) => {
       if (e.button !== 0 || !e.isPrimary) return;
@@ -178,7 +189,7 @@ function renderBook() {
     const image = known && creature.artwork
       ? `<img src="${asset(creature.artwork)}" alt="${creature.name} illustration">`
       : silhouette(i);
-    return `<article class="creature-card ${known ? "discovered" : ""}">${image}<h2>${known ? creature.name : "???"}</h2></article>`;
+    return `<article class="creature-card ${i === 6 ? "boss-card" : ""} ${known ? "discovered" : ""}">${image}<h2>${known ? creature.name : "???"}</h2></article>`;
   }).join("");
   ui.innerHTML = `<header class="book-header"><div class="book-mark">${icon("fish")}</div><h1 class="brush-title">Book</h1></header><nav class="book-tabs" aria-label="Book Stage sections">${stages.map((s) => `<button data-action="tab-${s.id}" aria-pressed="${selected.id === s.id}" class="book-tab ${s.id === selected.id ? "selected" : ""}">${s.name}</button>`).join("")}</nav><div class="book-count">${selected.name}<span>${icon("fish")} ${discovered.length} / ${selected.roster.length || "—"}</span></div><div class="book-grid">${selected.roster.length ? cards : `<div class="book-empty">${icon("book")}<h2>Unwritten waters</h2><p>This Stage’s Creature collection will arrive in a later prototype.</p></div>`}</div><nav class="bottom-nav">${button("book-back", "Back", "back")}</nav>`;
 }
@@ -196,10 +207,13 @@ function updateHUD() {
         : "normal";
   const book = el<HTMLButtonElement>('[data-action="book"]');
   book.disabled = state !== "READY";
+  el<HTMLButtonElement>('[data-action="picker"]').disabled = state !== "READY";
   const action = el<HTMLButtonElement>("#action");
   const active =
     sceneReady && ["READY", "BITE", "FIGHT"].includes(state) && !model.paused;
   action.setAttribute("aria-disabled", String(!active));
+  const dragLimit = root.clientWidth * 0.16;
+  action.style.translate = `${Math.max(-dragLimit, Math.min(dragLimit, model.dragX))}px 0`;
   el("#meters").hidden = !fight;
   if (fight) {
     for (const [name, value] of [
@@ -207,7 +221,7 @@ function updateHUD() {
       ["catch", model.progress],
     ] as const) {
       el(`#${name}-fill`).style.width = `${value}%`;
-      textIfChanged(`#${name}-number`, `${Math.floor(value)}%`);
+
       el(`#${name}-fill`).parentElement!.setAttribute(
         "aria-valuenow",
         String(Math.floor(value)),
@@ -227,9 +241,11 @@ function updateHUD() {
   direction.hidden = !fight || (!requiredDirection && !surge);
   textIfChanged(
     "#direction",
-    requiredDirection === -1 ? "← HOLD LEFT" : requiredDirection === 1 ? "HOLD RIGHT →"
+    requiredDirection === -1 ? "⬅" : requiredDirection === 1 ? "➡"
       : behaviour.telegraphing ? "⚠ STRONG PULL…" : "SURGE — GIVE LINE",
   );
+  direction.classList.toggle("arrow-only", requiredDirection !== 0);
+  direction.setAttribute("aria-label", requiredDirection === -1 ? "Slide left" : requiredDirection === 1 ? "Slide right" : "Strong resistance");
   direction.classList.toggle(
     "acquired",
     model.held && requiredDirection !== 0 && model.direction === requiredDirection,
@@ -255,7 +271,7 @@ function updateHUD() {
   if (behaviour.lulling) fightHint = "The pull eases…";
   if (model.tension >= tuning.warningTension) fightHint = "Tension rising — release to ease";
   if (model.tension >= tuning.criticalTension) fightHint = "⚠ Line at risk — release!";
-  if (!model.held) fightHint = "Giving line";
+  if (!model.held) fightHint = model.slackTime >= 1.5 ? "Fish slipping away — reel!" : "Giving line";
   const hint = !sceneReady
     ? "Arriving at the lake…"
     : {
@@ -270,7 +286,7 @@ function updateHUD() {
         FAILURE:
           model.failure === "miss"
             ? "It got away. Cast again."
-            : "The Creature got away.",
+            : model.failure === "escape" ? "Fish escaped. Cast again." : "The Creature got away.",
       }[state];
   // Live status text changes only on meaningful events, never once per render frame.
   textIfChanged("#fishing-hint", hint);
@@ -301,7 +317,7 @@ function renderReveal() {
     ? `<img src="${asset(creature.artwork)}" style="object-fit:${creature.artworkFit ?? "cover"}" alt="${creature.name} illustration">`
     : silhouette(0);
   el("#reveal").innerHTML =
-    `<section class="reveal-panel" role="dialog" aria-modal="true" aria-labelledby="catch-name"><div class="reveal-heading"><div class="book-mark">${icon("fish")}</div><h2 class="brush-title">${firstCatch ? "New Book Entry" : "A fine catch"}</h2></div><div class="reveal-paper">${image}<h1 id="catch-name" class="brush-title">${creature.name}</h1><div class="reveal-ornament">— ${icon("fish")} —</div></div>${button("continue", "Continue", "play", true)}</section>`;
+    `<section class="reveal-panel" role="dialog" aria-modal="true" aria-labelledby="catch-name"><div class="reveal-heading"><div class="book-mark">${icon("fish")}</div><h2 class="brush-title">${testCreatureId ? "Test catch" : firstCatch ? "New Book Entry" : "A fine catch"}</h2></div><div class="reveal-paper">${image}<h1 id="catch-name" class="brush-title">${creature.name}</h1><div class="reveal-ornament">— ${icon("fish")} —</div></div>${button("continue", "Continue", "play", true)}</section>`;
   el<HTMLButtonElement>('[data-action="continue"]').focus({
     preventScroll: true,
   });
@@ -316,7 +332,7 @@ function renderOverlay() {
   ui.inert = true;
   if (overlay === "settings") {
     const prefs = save.data.preferences;
-    overlayRoot.innerHTML = `<section class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title"><h1 id="settings-title">Settings</h1><span class="ink-rule"></span><label class="setting">Music <output id="music-value">${Math.round(prefs.music * 100)}%</output><input aria-label="Music volume" type="range" id="music" min="0" max="100" value="${prefs.music * 100}"></label><label class="setting">SFX <output id="sfx-value">${Math.round(prefs.sfx * 100)}%</output><input aria-label="SFX volume" type="range" id="sfx" min="0" max="100" value="${prefs.sfx * 100}"></label><label class="haptics-setting">Haptics<input type="checkbox" id="haptics" ${prefs.haptics ? "checked" : ""}><span class="toggle" aria-hidden="true"></span></label>${button("fullscreen", document.fullscreenElement ? "Exit Full Screen" : "Full Screen", "fullscreen")}${button("close-settings", screen === "lake" ? "Resume" : "Back", screen === "lake" ? "play" : "back", true)}${screen === "lake" ? button("leave-lake", "Stage Select") : ""}</section>`;
+    overlayRoot.innerHTML = `<section class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title"><h1 id="settings-title">Settings</h1><span class="ink-rule"></span><label class="setting">Music <output id="music-value">${Math.round(prefs.music * 100)}%</output><input aria-label="Music volume" type="range" id="music" min="0" max="100" value="${prefs.music * 100}"></label><label class="setting">SFX <output id="sfx-value">${Math.round(prefs.sfx * 100)}%</output><input aria-label="SFX volume" type="range" id="sfx" min="0" max="100" value="${prefs.sfx * 100}"></label><label class="haptics-setting">Haptics<input type="checkbox" id="haptics" ${prefs.haptics ? "checked" : ""}><span class="toggle" aria-hidden="true"></span></label>${button("haptic-test", "Test vibration")}${screen === "lake" ? button("close-settings", "Resume", "play", true) + button("leave-lake", "Stage Select") + button("fullscreen", document.fullscreenElement ? "Exit Full Screen" : "Full Screen", "fullscreen") + button("title", "Title Screen") : button("reset-progress", "Reset Progress") + button("close-settings", "Back", "back", true)}</section>`;
     for (const key of ["music", "sfx"] as const)
       el<HTMLInputElement>(`#${key}`).addEventListener("input", (e) => {
         save.data.preferences[key] =
@@ -329,6 +345,13 @@ function renderOverlay() {
       save.data.preferences.haptics = (e.target as HTMLInputElement).checked;
       save.write();
     });
+  } else if (overlay === "picker") {
+    overlayRoot.innerHTML = `<section class="modal picker-modal" role="dialog" aria-modal="true" aria-labelledby="picker-title"><h1 id="picker-title">Test a Creature</h1><p>Temporary playtest tool. Catches do not change your Book or progress.</p><div class="picker-grid">${stages[0].roster.map(id => creatures.find(c => c.id === id)!).filter(c => c.playable).map(c => `<button class="picker-choice" data-action="pick-${c.id}" aria-pressed="${pendingCreatureId === c.id}"><img src="${asset(c.artwork!)}" alt=""><span>${c.name}</span></button>`).join("")}</div><button class="picker-choice" data-action="pick-normal" aria-pressed="${pendingCreatureId === null}">Normal progression</button>${button("confirm-creature", "Confirm", "play", true)}${button("close-settings", "Cancel", "back")}</section>`;
+  } else if (overlay === "reset") {
+    overlayRoot.innerHTML = `<section class="modal" role="dialog" aria-modal="true" aria-labelledby="reset-title"><h1 id="reset-title">Reset Progress</h1><p>Choose a Stage or reset all discoveries. Sound and haptic settings stay.</p>${stages.map(s => button("reset-stage-" + s.id, s.name)).join("")}${button("reset-all", "All Stages")}${button("settings", "Back", "back")}</section>`;
+  } else if (overlay === "reset-confirm") {
+    const name = resetTarget === "all" ? "all Stages" : stages.find(s => s.id === resetTarget)!.name;
+    overlayRoot.innerHTML = `<section class="modal" role="dialog" aria-modal="true" aria-labelledby="reset-title"><h1 id="reset-title">Reset ${name}?</h1><p>This clears caught Creatures, Book entries and encounter progression for ${name}. This cannot be undone.</p>${button("confirm-reset", "Reset Progress")}${button("reset-progress", "Cancel", "back", true)}</section>`;
   } else
     overlayRoot.innerHTML = `<section class="modal resume-modal" role="dialog" aria-modal="true" aria-labelledby="pause-title">${icon("reel")}<h1 id="pause-title">A moment of calm</h1><p>Your fishing is paused.</p>${button("resume", "Resume", "play", true)}</section>`;
   overlayRoot
@@ -371,8 +394,7 @@ document.addEventListener(
   { capture: true },
 );
 document.addEventListener("click", (e) => {
-  if (e instanceof PointerEvent && e.pointerType === "touch" && !e.isPrimary)
-    return;
+  // Synthesized touch clicks may have isPrimary=false; pointer ownership is checked on pointerdown.
   const target = (e.target as HTMLElement).closest<HTMLButtonElement>(
     "[data-action]",
   );
@@ -383,6 +405,7 @@ document.addEventListener("click", (e) => {
   else if (action === "title") setScreen("title");
   else if (action === "enter-lake" && sceneReady) {
     model.reset(lakeEncounter());
+    showLakeIntro = true;
     setScreen("lake");
   } else if (action === "enter-lake") notify("The Lake is still loading…");
   else if (action === "book") openBook(screen);
@@ -397,12 +420,43 @@ document.addEventListener("click", (e) => {
   else if (action === "leave-lake") {
     model.reset();
     setScreen("select");
+  } else if (action === "picker" && model.state === "READY") {
+    pendingCreatureId = testCreatureId;
+    showOverlay("picker");
+  } else if (action.startsWith("pick-") && overlay === "picker") {
+    const id = action.slice(5);
+    if (id === "normal" || creatures.some(c => c.id === id && c.playable && stages[0].roster.includes(id))) {
+      pendingCreatureId = id === "normal" ? null : id;
+      renderOverlay();
+    }
+  } else if (action === "confirm-creature" && overlay === "picker") {
+    testCreatureId = pendingCreatureId;
+    model.reset(lakeEncounter());
+    showOverlay(null);
+    textIfChanged(".test-label", testCreatureId ? "Test encounter" : "");
+    updateHUD();
+  } else if (action === "reset-progress") showOverlay("reset");
+  else if (action === "reset-all" || action.startsWith("reset-stage-")) {
+    resetTarget = action === "reset-all" ? "all" : action.slice(12);
+    showOverlay("reset-confirm");
+  } else if (action === "confirm-reset" && overlay === "reset-confirm") {
+    save.resetProgress(resetTarget === "all" ? undefined : resetTarget);
+    showOverlay("reset");
+    notify(save.available ? "Progress reset." : "Progress reset for this visit; browser storage is unavailable.");
+  } else if (action === "haptic-test") {
+    notify(feedback.testVibration() ? "Vibration requested. If nothing is felt, check device vibration settings." : "Vibration is unavailable or disabled in this browser.");
   } else if (action === "fullscreen") void fullscreen();
   else if (action === "continue" && model.state === "REVEAL") {
     model.reset(lakeEncounter());
     updateHUD();
     el("#action").focus({ preventScroll: true });
   }
+});
+let backdropPressed = false;
+overlayRoot.addEventListener("pointerdown", e => { backdropPressed = e.target === overlayRoot; });
+overlayRoot.addEventListener("click", e => {
+  if (e.target === overlayRoot && backdropPressed && (overlay === "settings" || overlay === "resume")) showOverlay(null);
+  backdropPressed = false;
 });
 window.addEventListener("pointerup", (e) => model.release(e.pointerId));
 window.addEventListener("pointercancel", (e) => model.release(e.pointerId));
@@ -468,8 +522,9 @@ document.addEventListener("keydown", (e) => {
 model.onEvent((event) => {
   feedback.event(event);
   if (event === "CATCH_REVEAL") {
-    firstCatch = save.catch("lake", model.creature.id);
-    if (!save.available)
+    // TEMPORARY PLAYTEST TOOL: test encounters must never write progression.
+    firstCatch = testCreatureId ? false : save.catch("lake", model.creature.id);
+    if (!testCreatureId && !save.available)
       notify(
         "Caught! Browser storage is unavailable; your Book lasts for this visit.",
       );
