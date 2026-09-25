@@ -100,17 +100,17 @@ describe("documented Perch loop", () => {
     expect(game.state).toBe("FIGHT");
     expect(game.tension).toBeLessThan(100);
   });
-  it("escapes after three unattended seconds at zero progress, with pause and reel recovery", () => {
+  it("escapes after two unattended seconds at zero progress, with pause and reel recovery", () => {
     const game = new FishingGame(() => 0);
     const events: GameEvent[] = [];
     game.onEvent(e => events.push(e));
     hook(game);
     game.release(2);
-    advance(game, 2);
+    advance(game, 1.5);
     expect(game.state).toBe("FIGHT");
     game.pause();
     advance(game, 30);
-    expect(game.slackTime).toBeCloseTo(2);
+    expect(game.slackTime).toBeCloseTo(1.5);
     game.resume();
     game.press(3, 100);
     expect(game.slackTime).toBe(0);
@@ -119,7 +119,7 @@ describe("documented Perch loop", () => {
     advance(game, 4);
     expect(game.state).toBe("FIGHT");
     expect(game.progress).toBeGreaterThan(0);
-    advance(game, 3.4);
+    advance(game, 2.4);
     expect(game.state).toBe("FAILURE");
     expect(game.failure).toBe("escape");
     expect(events.filter(e => e === "FISH_ESCAPED")).toHaveLength(1);

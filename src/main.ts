@@ -239,11 +239,14 @@ function updateHUD() {
   direction.dataset.kind = surge ? "surge" : "run";
   direction.dataset.phase = combatPhase;
   direction.hidden = !fight || (!requiredDirection && !surge);
-  textIfChanged(
-    "#direction",
-    requiredDirection === -1 ? "⬅" : requiredDirection === 1 ? "➡"
-      : behaviour.telegraphing ? "⚠ STRONG PULL…" : "SURGE — GIVE LINE",
-  );
+  // One large vector arrow, mirrored for left: identical shape on every browser.
+  const cue = requiredDirection ? "arrow" : behaviour.telegraphing ? "tell" : "surge";
+  if (direction.dataset.cue !== cue) {
+    direction.dataset.cue = cue;
+    direction.innerHTML = requiredDirection
+      ? '<svg class="run-arrow" viewBox="0 0 64 40" aria-hidden="true"><path fill="currentColor" d="M3 12H38V2L62 20 38 38V28H3Z"/></svg>'
+      : behaviour.telegraphing ? "⚠ STRONG PULL…" : "SURGE — GIVE LINE";
+  }
   direction.classList.toggle("arrow-only", requiredDirection !== 0);
   direction.setAttribute("aria-label", requiredDirection === -1 ? "Slide left" : requiredDirection === 1 ? "Slide right" : "Strong resistance");
   direction.classList.toggle(
@@ -271,7 +274,7 @@ function updateHUD() {
   if (behaviour.lulling) fightHint = "The pull eases…";
   if (model.tension >= tuning.warningTension) fightHint = "Tension rising — release to ease";
   if (model.tension >= tuning.criticalTension) fightHint = "⚠ Line at risk — release!";
-  if (!model.held) fightHint = model.slackTime >= 1.5 ? "Fish slipping away — reel!" : "Giving line";
+  if (!model.held) fightHint = model.slackTime >= tuning.slackWarning ? "Fish slipping away — reel!" : "Giving line";
   const hint = !sceneReady
     ? "Arriving at the lake…"
     : {

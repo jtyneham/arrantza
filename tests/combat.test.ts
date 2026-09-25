@@ -17,9 +17,9 @@ function step(game: FishingGame, seconds: number) {
 describe("Lake Creatures 3–6", () => {
   it.each([
     [2, 11, 7, 21, 43, 23, 32],
-    [3, 10, 9, 22, 40, 27, 38],
-    [4, 10, 11, 23, 39, 31, 58],
-    [5, 9, 14, 27, 37, 36, 62],
+    [3, 10, 9, 18, 40, 22, 30],
+    [4, 10, 11, 19, 39, 24, 36],
+    [5, 9, 14, 21, 37, 28, 40],
   ])("Creature %i uses tuned base and continuous directional rates", (index, gain, decay, tension, recovery, correctRate, wrongRate) => {
     const creature = creatures[index];
     const game = new FishingGame(() => 0, creature);
@@ -97,7 +97,7 @@ describe("Lake Creatures 3–6", () => {
     game.behaviour.active = creatures[5].moves[2];
     step(game, 1);
     expect(game.behaviour.lulling).toBe(true);
-    expect(game.tension).toBeCloseTo(6.75);
+    expect(game.tension).toBeCloseTo(5.25);
     step(game, 0.41);
     expect(game.behaviour.telegraphing).toBe(true);
     expect(events).toContain("SURGE_TELEGRAPH");
@@ -113,7 +113,7 @@ describe("Lake Creatures 3–6", () => {
     expect(events.filter(e => e === "SURGE_START")).toHaveLength(1);
     const tension = game.tension;
     step(game, 0.1);
-    expect(game.tension).toBeCloseTo(tension + 6.8);
+    expect(game.tension).toBeCloseTo(tension + 4.6);
   });
 
   it("Eel gives a real recovery opportunity after two demanding events", () => {

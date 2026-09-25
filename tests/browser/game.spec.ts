@@ -517,7 +517,7 @@ test("slack escape pauses safely, warns, retries and retains the selected fish",
   const control = await input(page, isMobile);
   await control.down(); await control.up(); await waitBite(page);
   await control.down(); await control.up();
-  await advance(page, 1800);
+  await advance(page, 1200);
   await expect(page.locator("#fishing-hint")).toContainText("Fish slipping away");
   await activate(page, "settings", isMobile);
   await advance(page, 10000);
@@ -527,7 +527,7 @@ test("slack escape pauses safely, warns, retries and retains the selected fish",
   else await page.mouse.click(frame.x + 4, frame.y + frame.height / 2);
   await expect(page.locator("#overlay")).toBeHidden();
   await expect(page.locator("#game")).toHaveAttribute("data-held", "false");
-  await advance(page, 1400);
+  await advance(page, 1000);
   await expect(page.locator("#fishing-hint")).toContainText("Fish escaped");
   await advance(page, 1500);
   await expect(page.locator("#game")).toHaveAttribute("data-state", "READY");
@@ -535,7 +535,10 @@ test("slack escape pauses safely, warns, retries and retains the selected fish",
   await expect(page.locator('[data-action="pick-common-carp"]')).toHaveAttribute("aria-pressed", "true");
 });
 
-test("arrow-only cues and bounded held drag return to center on release", async ({ page, isMobile }, info) => {
+for (const random of [0.1, 0.9]) {
+test(`arrow-only cues (${random < 0.5 ? "left" : "right"}) and bounded held drag return to center on release`, async ({ page, isMobile }, info) => {
+  await page.addInitScript(value => { Math.random = () => value; }, random);
+  if (isMobile) await page.setViewportSize({ width: 320, height: 568 });
   await feedbackBoot(page, isMobile);
   await activate(page, "picker", isMobile);
   await activate(page, "pick-common-carp", isMobile);
@@ -546,18 +549,26 @@ test("arrow-only cues and bounded held drag return to center on release", async 
   const control = await input(page, isMobile);
   await control.down(); await control.up(); await waitBite(page); await control.down();
   await advance(page, 3050);
-  await expect(page.locator("#direction")).toHaveText(/^[⬅➡]$/u);
-  expect(await page.locator("#direction").evaluate(e => getComputedStyle(e).animationName)).toBe("direction-pulse");
+  await expect(page.locator("#direction .run-arrow")).toBeVisible();
+  await expect(page.locator("#direction")).toHaveAttribute("data-direction", random < 0.5 ? "-1" : "1");
+  const meters = (await page.locator("#meters").boundingBox())!;
+  expect(meters.width / frame.width).toBeGreaterThan(0.49);
+  expect(meters.x).toBeGreaterThan(frame.x);
+  expect(meters.x + meters.width).toBeLessThan(frame.x + frame.width);
+  expect(await page.locator("#direction").evaluate(e => getComputedStyle(e).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
+  expect(await page.locator("#direction").evaluate(e => getComputedStyle(e).animationName)).toBe("direction-slide");
   await control.outside(); await advance(page, 20);
   const moved = (await action.boundingBox())!;
   expect(moved.x - origin.x).toBeCloseTo(frame.width * 0.16, 0);
   expect(moved.y).toBeCloseTo(origin.y, 0);
   await expect(page.locator("#game")).toHaveAttribute("data-held", "true");
   expect(await page.locator("#meters").innerText()).not.toContain("%");
-  await page.screenshot({ path: `test-results/${info.project.name}-drag.png` });
+  await page.screenshot({ path: `test-results/${info.project.name}-drag-${random < 0.5 ? "left" : "right"}.png` });
   await control.up();
   expect((await action.boundingBox())!.x).toBeCloseTo(origin.x, 0);
 });
+
+}
 
 test("title backgrounds, reset confirmation, Book boss layout and stage menu order", async ({ page, isMobile }, info) => {
   await page.addInitScript(() => {
@@ -602,7 +613,8 @@ test("title backgrounds, reset confirmation, Book boss layout and stage menu ord
   await activate(page, "enter-lake", isMobile);
   await advance(page, 2500);
   await expect(page.locator(".lake-intro")).toHaveText("Lake");
-  expect(await page.locator(".lake-intro").evaluate(e => Number(getComputedStyle(e).opacity))).toBeGreaterThan(0);
+  expect(await page.locator(".lake-intro").evaluate(e => Number(getComputedStyle(e).opacity))).toBeGreaterThan(0.8);
+  await page.screenshot({ path: `test-results/${info.project.name}-lake-intro.png` });
   await activate(page, "settings", isMobile);
   expect(await page.locator(".modal button span").allTextContents()).toEqual(["Test vibration", "Resume", "Stage Select", "Full Screen", "Title Screen"]);
   await page.screenshot({ path: `test-results/${info.project.name}-settings.png` });

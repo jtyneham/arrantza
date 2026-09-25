@@ -36,7 +36,7 @@ test("backgrounds, real menu input, fishing, pause and test picker across browse
   expect(modal.y + modal.height).toBeLessThanOrEqual(page.viewportSize()!.height);
   await page.screenshot({ path: `test-results/${info.project.name}-settings.png` });
   await action("close-settings");
-  await page.clock.runFor(3400);
+  await page.clock.runFor(2300);
   await expect(page.locator("#game")).toHaveAttribute("data-state", "FAILURE");
   await page.clock.runFor(1500);
   await expect(page.locator("#game")).toHaveAttribute("data-state", "READY");

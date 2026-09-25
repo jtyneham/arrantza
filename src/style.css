@@ -313,7 +313,7 @@ button:active {
   text-align: center;
   font-size: 8cqw;
   font-weight: bold;
-  text-shadow: 0 2px 7px #082e45;
+  text-shadow: 0 2px 3px #082e45, 0 0 10px #082e45;
   animation: intro 5s both;
   pointer-events: none;
 }
@@ -406,7 +406,7 @@ button:active {
   );
 }
 #meters {
-  width: 100%;
+  width: 116%;
   margin-bottom: 0.2cqh;
 }
 .meter-block {
@@ -419,7 +419,7 @@ button:active {
     transparent
   );
   font:
-    700 2.45cqw system-ui,
+    700 2.9cqw system-ui,
     sans-serif;
   margin-bottom: 0.6cqh;
 }
@@ -431,7 +431,7 @@ button:active {
   text-shadow: 0 1px #082632;
 }
 .meter-track {
-  height: 1.65cqh;
+  height: 1.95cqh;
   border: 1.5px solid var(--cream);
   padding: 2px;
   border-radius: 4px;
@@ -439,7 +439,7 @@ button:active {
   box-shadow: 0 0 0 1px #092733;
 }
 .catch .meter-track {
-  height: 2.25cqh;
+  height: 2.65cqh;
 }
 .meter-fill {
   height: 100%;
@@ -933,7 +933,7 @@ button:active {
   }
   15%,
   80% {
-    opacity: 0.45;
+    opacity: 0.88;
     transform: none;
   }
   100% {
@@ -1047,13 +1047,21 @@ button:active {
   box-shadow: 0 0 0 1px #775e36, 0 2px 5px #1533426b;
 }
 .direction.arrow-only {
-  font-size: 9cqw;
-  line-height: 1;
+  --arrow-travel: 2.5cqw;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0.6cqh 0;
   color: var(--cream);
-  animation: direction-pulse 0.65s ease-in-out infinite alternate;
+  filter: drop-shadow(0 2px 2px #07364d);
+  animation: direction-slide 0.55s ease-in-out infinite alternate;
 }
+.run-arrow { display: block; width: 16cqw; height: 10cqw; }
+.direction[data-direction="-1"] { --arrow-travel: -2.5cqw; }
+.direction[data-direction="-1"] .run-arrow { transform: scaleX(-1); }
 .direction.arrow-only.acquired { color: #c8e69c; }
-@keyframes direction-pulse { to { transform: scale(1.13); filter: brightness(1.18); } }
+@keyframes direction-slide { from { transform: translateX(0); } to { transform: translateX(var(--arrow-travel)); } }
 
 /* Keep the approved blue logo legible over the supplied night plate. */
 #game[data-title-tone="night"] .title-logo .logo,
